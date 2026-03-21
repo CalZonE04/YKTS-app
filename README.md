@@ -1,16 +1,35 @@
-# React + Vite
+# ⛳ YKTS (You Know The Score)
+### Real-Time Tour-Grade Golf Scoring App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**YKTS** is a high-performance, mobile-first web application designed to bring a professional tournament atmosphere to casual golf rounds. Built with **React**, **Tailwind CSS**, and **Firebase**, it features real-time synchronization, multi-mode scoring logic, and a live "Announcer" feed.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🚀 Key Features
 
-## React Compiler
+* **Multi-Mode Engine:** Supports Stroke Play, Stableford, Scramble, Best Ball, Alternate Shot, Match Play, and the high-stakes "Snake" mode.
+* **Live Commentary Feed:** An automated "Announcer" logic that calls out Birdies, Eagles, Holes-in-One, and Lead Changes in real-time.
+* **Real-Time Sync:** Powered by Firebase Firestore `onSnapshot` for instant score updates across all devices in the group.
+* **Professional Analytics:** Smart logic that calculates "To Par" scores and Stableford points dynamically based on holes actually played.
+* **Camera Roll Export:** One-tap scorecard generation using `html-to-image` with a native mobile share-sheet fallback.
+* **PWA Ready:** Manifest and metadata configured for a "standalone" home-screen experience, hiding browser bars for full immersion.
+* **Custom Branding:** Integrated splash screen and branded UI with custom logo support.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🛠️ Tech Stack
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+* **Frontend:** React (Vite)
+* **Styling:** Tailwind CSS (for a modern, "App-Store" aesthetic)
+* **Backend:** Firebase Firestore (Real-time NoSQL Database)
+* **Icons:** Lucide React
+* **Image Processing:** html-to-image
+* **Animation:** Framer Motion / Tailwind Animate
+
+---
+
+## 📦 Installation & Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/yourusername/ykts-golf.git](https://github.com/yourusername/ykts-golf.git)

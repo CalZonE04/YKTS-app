@@ -1,0 +1,16 @@
+{
+    "short_name": "YKTS",
+    "name": "You Know The Score",
+    "icons": [
+        {
+          "src": "logo.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any maskable"
+        }
+      ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#065f46",
+    "background_color": "#f8fafc"
+  }
