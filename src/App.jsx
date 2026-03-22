@@ -1,35 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
-import { doc, onSnapshot, updateDoc, setDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getPlayerStats, generateGameCode } from './utils';
 
-// UI Components
-import { Header, Navigation, SplashScreen } from './Components/UI';
+// UI Components - Added MenuOverlay here
+import { Header, Navigation, SplashScreen, MenuOverlay } from './Components/UI';
 
 // Screen Components
 import { 
-    ScoringScreen, 
-    LeaderboardScreen, 
-    StatsScreen, 
-    LobbyScreen, 
-    SetupScreen, 
-    ScorecardScreen,
-    SummaryScreen,
-    FeedScreen 
+    ScoringScreen, LeaderboardScreen, StatsScreen, 
+    LobbyScreen, SetupScreen, ScorecardScreen,
+    SummaryScreen, FeedScreen 
 } from './Components/Screens';
 
 export default function App() {
-    // 1. APP STATES
+    // 1. APP & PERSISTENCE STATES (Top Level)
     const [showSplash, setShowSplash] = useState(true);
     const [isExiting, setIsExiting] = useState(false);
-    const [view, setView] = useState('lobby'); // lobby, setup, game, summary
+    const [isMenuOpen, setIsMenuOpen] = useState(false); // Menu control state
+    
+    // Initialize from LocalStorage so the app doesn't reset on refresh
+    const [gameCode, setGameCode] = useState(() => localStorage.getItem('ykts_gameCode') || null);
+    const [view, setView] = useState(() => localStorage.getItem('ykts_view') || 'lobby');
+    
     const [activeTab, setActiveTab] = useState('scoring');
-    const [gameCode, setGameCode] = useState(null);
     const [gameState, setGameState] = useState(null);
     const [currentHole, setCurrentHole] = useState(0);
     const [toast, setToast] = useState({ show: false, msg: '', isError: false });
 
-    // 2. SPLASH SCREEN TIMER
+    // 2. SAVE TO LOCALSTORAGE
+    useEffect(() => {
+        if (gameCode) {
+            localStorage.setItem('ykts_gameCode', gameCode);
+            localStorage.setItem('ykts_view', view);
+        } else {
+            localStorage.removeItem('ykts_gameCode');
+            localStorage.setItem('ykts_view', 'lobby');
+        }
+    }, [gameCode, view]);
+
+    // 3. SPLASH SCREEN TIMER
     useEffect(() => {
         const timer = setTimeout(() => {
             setIsExiting(true);
@@ -38,22 +48,22 @@ export default function App() {
         return () => clearTimeout(timer);
     }, []);
 
-    // 3. FIREBASE REAL-TIME SYNC
+    // 4. FIREBASE REAL-TIME SYNC
     useEffect(() => {
         if (!gameCode) return;
         const unsub = onSnapshot(doc(db, 'games', gameCode), (doc) => {
             if (doc.exists()) {
                 setGameState(doc.data());
+                // If we have a valid game, make sure we aren't stuck on the lobby/setup
+                if (view === 'lobby' || view === 'setup') setView('game');
             } else {
-                handleShowToast("Game not found", true);
-                setGameCode(null);
-                setView('lobby');
+                handleLeaveGame();
             }
         });
         return () => unsub();
     }, [gameCode]);
 
-    // 4. HANDLERS
+    // 5. HANDLERS
     const handleShowToast = (msg, isError = false) => {
         setToast({ show: true, msg, isError });
         setTimeout(() => setToast({ show: false, msg: '', isError: false }), 3000);
@@ -66,8 +76,17 @@ export default function App() {
     };
 
     const handleJoinGame = (code) => {
+        if (!code) return handleShowToast("Enter a code", true);
         setGameCode(code.toUpperCase());
         setView('game');
+    };
+
+    const handleLeaveGame = () => {
+        localStorage.removeItem('ykts_gameCode');
+        localStorage.removeItem('ykts_view');
+        setGameCode(null);
+        setGameState(null);
+        setView('lobby');
     };
 
     const handleUpdatePar = async (delta) => {
@@ -105,18 +124,18 @@ export default function App() {
         const leaderAfter = getLeaderId(newPlayers);
         let feedMessages = [];
 
-        // Commentary Logic
+        // Commentary Logic (Birdies/Eagles)
         if (oldScore === 0 && newScore > 0) {
             const diff = newScore - par;
-            if (newScore === 1) feedMessages.push(`🎯 HOLE IN ONE! ${player.name} made history on Hole ${currentHole + 1}!`);
+            if (newScore === 1) feedMessages.push(`🎯 HOLE IN ONE! ${player.name} on Hole ${currentHole + 1}!`);
             else if (diff <= -2) feedMessages.push(`🦅 EAGLE! ${player.name} is flying on Hole ${currentHole + 1}!`);
-            else if (diff === -1) feedMessages.push(`🐦 Birdie! ${player.name} picked up a shot on Hole ${currentHole + 1}.`);
+            else if (diff === -1) feedMessages.push(`🐦 Birdie! ${player.name} on Hole ${currentHole + 1}.`);
         }
 
         // Leader Change Logic
         if (leaderBefore !== leaderAfter && leaderAfter) {
             const newLeader = newPlayers.find(p => p.id === leaderAfter);
-            feedMessages.push(`📈 NEW LEADER! ${newLeader.name} takes the #1 spot!`);
+            feedMessages.push(`📈 NEW LEADER! ${newLeader.name} takes the lead!`);
         }
 
         try {
@@ -132,63 +151,42 @@ export default function App() {
         } catch (err) {
             handleShowToast("Sync failed", true);
         }
-        // Inside your App component...
-
-// 1. Initialize state from LocalStorage if it exists
-const [gameCode, setGameCode] = useState(localStorage.getItem('ykts_gameCode') || null);
-const [view, setView] = useState(localStorage.getItem('ykts_view') || 'lobby');
-
-// 2. Add an effect to save state whenever it changes
-useEffect(() => {
-    if (gameCode) {
-        localStorage.setItem('ykts_gameCode', gameCode);
-        localStorage.setItem('ykts_view', view);
-    } else {
-        localStorage.removeItem('ykts_gameCode');
-        localStorage.setItem('ykts_view', 'lobby');
-    }
-}, [gameCode, view]);
-
-// 3. Update handleJoinGame and handleCreateGame to set the view
-const handleJoinGame = (code) => {
-    const cleanCode = code.toUpperCase();
-    setGameCode(cleanCode);
-    setView('game'); // Ensure view is updated to trigger persistence
-};
-
-// 4. Update the "Leave Game" or "Clubhouse Lobby" button logic
-const handleLeaveGame = () => {
-    localStorage.removeItem('ykts_gameCode');
-    localStorage.removeItem('ykts_view');
-    setGameCode(null);
-    setGameState(null);
-    setView('lobby');
-};
     };
 
-    // 5. RENDER LOGIC
+    // 6. RENDER LOGIC
     return (
         <div className="h-[100dvh] w-full flex flex-col bg-slate-50 overflow-hidden fixed inset-0">
             {showSplash && <SplashScreen isExiting={isExiting} />}
 
-            {/* HEADER (Only show if in game) */}
+            {/* NEW: MENU OVERLAY (Safeguard) */}
+            <MenuOverlay 
+                isOpen={isMenuOpen} 
+                onClose={() => setIsMenuOpen(false)} 
+                onEndRound={() => { 
+                    setIsMenuOpen(false); 
+                    setView('summary'); 
+                }}
+                mode={gameState?.mode}
+            />
+
+            {/* HEADER - Updated to open menu */}
             {view === 'game' && (
                 <Header 
                     gameId={gameCode} 
                     courseName={gameState?.courseName} 
-                    onMenuOpen={() => setView('summary')} 
+                    onMenuOpen={() => setIsMenuOpen(true)} 
                 />
             )}
 
             {/* MAIN CONTENT AREA */}
             <main className="flex-1 flex flex-col relative overflow-hidden">
-            {view === 'lobby' && (
-    <LobbyScreen 
-        onNavigate={setView} // Match the name in LobbyScreen
-        onJoinSuccess={handleJoinGame} // Match the name in LobbyScreen
-        showToast={handleShowToast} 
-    />
-)}
+                {view === 'lobby' && (
+                    <LobbyScreen 
+                        onNavigate={setView} 
+                        onJoinSuccess={handleJoinGame} 
+                        showToast={handleShowToast} 
+                    />
+                )}
 
                 {view === 'setup' && (
                     <SetupScreen 
@@ -199,34 +197,42 @@ const handleLeaveGame = () => {
                     />
                 )}
 
-                {view === 'game' && (
-                    <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
-                        {activeTab === 'scoring' && (
-                            <ScoringScreen 
-                                state={gameState}
-                                currentHole={currentHole}
-                                onHoleChange={setCurrentHole}
-                                onUpdateScore={handleUpdateScore}
-                                onUpdatePar={handleUpdatePar}
-                            />
-                        )}
-                        {activeTab === 'leaderboard' && <LeaderboardScreen state={gameState} />}
-                        {activeTab === 'stats' && <StatsScreen state={gameState} />}
-                        {activeTab === 'feed' && <FeedScreen state={gameState} />}
-                        {activeTab === 'scorecard' && <ScorecardScreen state={gameState} />}
+                {view === 'game' && gameState && (
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+                            {activeTab === 'scoring' && (
+                                <ScoringScreen 
+                                    state={gameState}
+                                    currentHole={currentHole}
+                                    onHoleChange={setCurrentHole}
+                                    onUpdateScore={handleUpdateScore}
+                                    onUpdatePar={handleUpdatePar}
+                                />
+                            )}
+                            {activeTab === 'leaderboard' && <LeaderboardScreen state={gameState} />}
+                            {activeTab === 'stats' && <StatsScreen state={gameState} />}
+                            {activeTab === 'feed' && <FeedScreen state={gameState} />}
+                            {activeTab === 'scorecard' && (
+                                <ScorecardScreen 
+                                    state={gameState} 
+                                    currentHole={currentHole} 
+                                    onHoleSelect={(hIdx) => { setCurrentHole(hIdx); setActiveTab('scoring'); }} 
+                                />
+                            )}
+                        </div>
                     </div>
                 )}
 
-{view === 'summary' && (
-    <SummaryScreen 
-        state={gameState} 
-        onLeave={() => { setGameCode(null); setView('lobby'); }} 
-        showToast={handleShowToast} // <--- ADD THIS LINE
-    />
-)}
+                {view === 'summary' && (
+                    <SummaryScreen 
+                        state={gameState} 
+                        onLeave={handleLeaveGame} 
+                        showToast={handleShowToast}
+                    />
+                )}
             </main>
 
-            {/* NAVIGATION (Only show if in game) */}
+            {/* NAVIGATION */}
             {view === 'game' && (
                 <Navigation 
                     current={activeTab} 
@@ -234,7 +240,7 @@ const handleLeaveGame = () => {
                 />
             )}
 
-            {/* GLOBAL TOAST NOTIFICATIONS */}
+            {/* GLOBAL TOAST */}
             {toast.show && (
                 <div className={`fixed top-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl text-white font-black shadow-2xl z-[200] animate-in slide-in-from-top duration-300 ${toast.isError ? 'bg-red-500' : 'bg-emerald-600'}`}>
                     {toast.msg}

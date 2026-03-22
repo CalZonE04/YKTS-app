@@ -7,7 +7,7 @@ import {
     FileText, 
     MessageSquare, 
     Menu, 
-    Flag 
+    Flag, ChevronRight, CheckCircle2, Trash2
 } from 'lucide-react';
 
 /**
@@ -99,6 +99,43 @@ export function SplashScreen({ isExiting }) {
             <p className="absolute bottom-12 text-emerald-300/50 text-[10px] font-black uppercase tracking-[0.3em]">
                 You Know The Score
             </p>
+        </div>
+    );
+}
+export function MenuOverlay({ isOpen, onClose, onEndRound, mode }) {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[200] flex flex-col justify-end">
+            {/* Backdrop: Fades the background and closes menu on tap */}
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+            
+            {/* Menu Sheet */}
+            <div className="relative bg-white rounded-t-[3rem] p-8 pb-12 animate-in slide-in-from-bottom duration-300">
+                <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-8" />
+                
+                <h2 className="text-2xl font-black text-slate-900 mb-6 uppercase italic tracking-tighter">Round Menu</h2>
+                
+                <div className="space-y-3">
+                    <button onClick={onClose} className="w-full p-5 bg-slate-100 rounded-2xl font-black text-slate-900 flex justify-between items-center active:scale-95 transition-all">
+                        Resume Round
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                    </button>
+                    
+                    <button onClick={onEndRound} className="w-full p-5 bg-emerald-600 rounded-2xl font-black text-white flex justify-between items-center shadow-lg active:scale-95 transition-all">
+                        End & Save Round
+                        <Flag size={18} fill="white" />
+                    </button>
+                    
+                    <button onClick={() => window.location.reload()} className="w-full p-5 bg-red-50 text-red-600 rounded-2xl font-black flex justify-between items-center active:scale-95 transition-all">
+                        Emergency Reset
+                        <Trash2 size={18} />
+                    </button>
+                </div>
+                
+                <p className="mt-8 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                    Current Mode: {mode || 'Stroke Play'}
+                </p>
+            </div>
         </div>
     );
 }
