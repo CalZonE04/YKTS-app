@@ -1,47 +1,55 @@
 import React from 'react';
 // Updated list to include Flag, MessageSquare, and everything else
 import { 
-    Target, 
-    Trophy, 
-    BarChart2, 
-    FileText, 
-    MessageSquare, 
-    Menu, 
-    Flag, ChevronRight, CheckCircle2, Trash2
+    Menu, X, Trophy, Flag, 
+    ChevronRight, CheckCircle2, Trash2, 
+    LayoutGrid, Trophy as TrophyIcon, BarChart2, MessageSquare, CreditCard,
+    Share, LogOut, Target, FileText // <--- NEW ICONS
 } from 'lucide-react';
 
 /**
- * 1. HEADER COMPONENT
+ * 1. HEADER (With Obvious Game Code)
  */
-export function Header({ gameId, courseName, onMenuOpen }) {
+export function Header({ gameId, courseName, onMenuOpen, isSpectator }) { 
     return (
         <header className="bg-emerald-800 text-white p-4 pt-6 shadow-lg relative z-50">
             <div className="flex justify-between items-center max-w-md mx-auto">
+                
+                {/* LOGO & COURSE NAME */}
                 <div className="flex items-center gap-3">
-                    {/* CUSTOM LOGO CONTAINER */}
                     <div className="bg-white p-1 rounded-xl shadow-inner w-10 h-10 flex items-center justify-center overflow-hidden">
-                        <img 
-                            src="/logo.png" 
-                            alt="YKTS Logo" 
-                            className="w-full h-full object-contain"
-                            onError={(e) => e.target.src = 'https://placehold.co/40x40?text=⛳'} 
-                        />
+                        <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} />
                     </div>
-                    
                     <div>
                         <h1 className="text-xl font-black leading-none tracking-tighter italic">YKTS</h1>
                         <p className="text-[10px] font-black uppercase text-emerald-300 tracking-widest mt-1 truncate max-w-[120px]">
-                            {courseName || 'Loading...'}
+                            {courseName || 'Live Scoring'}
                         </p>
                     </div>
                 </div>
                 
                 <div className="flex items-center gap-2">
-                    <div className="bg-emerald-950/50 px-3 py-1.5 rounded-lg border border-emerald-700/50">
-                        <span className="text-[10px] font-black tracking-widest text-emerald-100 uppercase">
-                            {gameId || '----'}
-                        </span>
-                    </div>
+                    
+                    {/* SECURE BADGE: Hide the game code if they are just watching */}
+                    {!isSpectator ? (
+                        <div className="bg-emerald-900 px-3 py-1.5 rounded-lg border border-emerald-600 shadow-sm flex items-center gap-1.5">
+                            <span className="text-[8px] font-black tracking-widest text-emerald-400 uppercase">
+                                Code
+                            </span>
+                            <span className="text-xs font-black tracking-widest text-white uppercase">
+                                {gameId || '----'}
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="bg-blue-900/50 px-3 py-1.5 rounded-lg border border-blue-700/50 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                            <span className="text-[10px] font-black tracking-widest text-blue-100 uppercase">
+                                SPECTATING
+                            </span>
+                        </div>
+                    )}
+                    
+                    {/* MENU BUTTON */}
                     <button onClick={onMenuOpen} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
                         <Menu size={24} />
                     </button>
@@ -102,14 +110,38 @@ export function SplashScreen({ isExiting }) {
         </div>
     );
 }
-export function MenuOverlay({ isOpen, onClose, onEndRound, mode }) {
+/**
+ * 3. MENU OVERLAY (Updated with Share & Leave)
+ */
+export function MenuOverlay({ isOpen, onClose, onEndRound, onLeaveGame, gameId, mode, showToast }) {
     if (!isOpen) return null;
+
+    // Trigger the native mobile share sheet with a Magic Link!
+    const handleShare = async () => {
+        const joinLink = `${window.location.origin}?join=${gameId}`;
+        
+        // NEW: App name added to the top of the message
+        const shareText = `⛳️ YKTS (You Know The Score)\n\n🏌️‍♂️ Get involved in the game!\nTap the link to view the live scorecard and join the action:\n${joinLink}`;
+
+        if (navigator.share && navigator.canShare) {
+            try {
+                await navigator.share({ 
+                    title: 'YKTS Live Scorecard', 
+                    text: shareText 
+                });
+            } catch (e) {
+                console.log("Share dismissed");
+            }
+        } else {
+            navigator.clipboard.writeText(shareText);
+            if (showToast) showToast("Invite link copied to clipboard! 📋");
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[200] flex flex-col justify-end">
-            {/* Backdrop: Fades the background and closes menu on tap */}
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
             
-            {/* Menu Sheet */}
             <div className="relative bg-white rounded-t-[3rem] p-8 pb-12 animate-in slide-in-from-bottom duration-300">
                 <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-8" />
                 
@@ -118,22 +150,27 @@ export function MenuOverlay({ isOpen, onClose, onEndRound, mode }) {
                 <div className="space-y-3">
                     <button onClick={onClose} className="w-full p-5 bg-slate-100 rounded-2xl font-black text-slate-900 flex justify-between items-center active:scale-95 transition-all">
                         Resume Round
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                        <ChevronRight size={20} className="text-slate-400" />
+                    </button>
+                    
+                    <button onClick={handleShare} className="w-full p-5 bg-blue-50 text-blue-600 rounded-2xl font-black flex justify-between items-center active:scale-95 transition-all">
+                        Share Lobby
+                        <Share size={18} />
                     </button>
                     
                     <button onClick={onEndRound} className="w-full p-5 bg-emerald-600 rounded-2xl font-black text-white flex justify-between items-center shadow-lg active:scale-95 transition-all">
                         End & Save Round
-                        <Flag size={18} fill="white" />
+                        <CheckCircle2 size={20} />
                     </button>
                     
-                    <button onClick={() => window.location.reload()} className="w-full p-5 bg-red-50 text-red-600 rounded-2xl font-black flex justify-between items-center active:scale-95 transition-all">
-                        Emergency Reset
-                        <Trash2 size={18} />
+                    <button onClick={onLeaveGame} className="w-full p-5 bg-red-50 text-red-600 rounded-2xl font-black flex justify-between items-center active:scale-95 transition-all mt-4">
+                        Leave Game
+                        <LogOut size={18} />
                     </button>
                 </div>
                 
                 <p className="mt-8 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                    Current Mode: {mode || 'Stroke Play'}
+                    Mode: {mode || 'Stroke Play'} • Code: {gameId}
                 </p>
             </div>
         </div>

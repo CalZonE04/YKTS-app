@@ -1,14 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { 
-    Trophy, Flag, Plus, X, ChevronLeft, ChevronRight, 
-    Minus, Target, BarChart2, Share, CheckCircle2, Home,
-    Settings, Users, Layers, MapPin, Trash2
-} from 'lucide-react';
+import { Trophy, Flag, Plus, X, ChevronLeft, ChevronRight, Minus, Target, BarChart2, Share, CheckCircle2, Home, Settings, Users, Layers, MapPin, Trash2, Search, Filter, EyeOff, Globe, LocateFixed, Activity } from 'lucide-react';
 import { 
     getPlayerStats, formatRel, generateGameCode, 
     getHolePoints, calculateMatchStatus 
 } from '../utils';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import * as htmlToImage from 'html-to-image';
 
 // 1. YOUR LOCAL COURSE DATABASE
@@ -135,49 +131,79 @@ function CourseInput({ value, onChange }) {
 }
 
 /**
- * 1. LOBBY SCREEN
+ * 1. LOBBY SCREEN (Cleaned up, Feed moved to SpectateScreen)
  */
 export function LobbyScreen({ onNavigate, onJoinSuccess, showToast }) {
     const inputRef = useRef(null);
+
     return (
-        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4">
-            <div className="bg-emerald-600 p-8 rounded-[2.5rem] shadow-2xl text-white mb-8 rotate-3 flex items-center justify-center w-24 mx-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar flex flex-col justify-center">
+            
+            {/* HERO SECTION */}
+            <div className="bg-emerald-600 p-8 rounded-[2.5rem] shadow-2xl text-white mb-8 rotate-3 flex items-center justify-center w-24 mx-auto mt-4">
                 <Trophy size={48} />
             </div>
             <div className="text-center mb-10">
-                <h1 className="text-4xl font-black text-slate-900 leading-none">You Know</h1>
-                <h2 className="text-4xl font-black text-emerald-600 leading-none">The Score</h2>
+                <h1 className="text-5xl font-black text-slate-900 leading-none tracking-tighter italic">YKTS</h1>
+                <h2 className="text-lg font-black text-emerald-600 tracking-[0.2em] uppercase mt-2">You Know The Score</h2>
             </div>
-            <button 
-                onClick={() => onNavigate('setup')} 
-                className="w-full bg-emerald-600 text-white p-6 rounded-[2rem] font-black text-xl shadow-lg active:scale-95 transition flex justify-center items-center gap-3 mb-12"
-            >
-                <Flag size={24} fill="currentColor" /> Create Game
-            </button>
-            <div className="w-full bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200">
-                <label className="block text-[10px] font-black text-slate-400 mb-4 text-center uppercase tracking-[0.2em]">Join Friend</label>
-                <div className="flex gap-2">
-                    <input ref={inputRef} type="text" placeholder="CODE" maxLength={5} className="flex-1 min-w-0 p-4 bg-slate-50 rounded-2xl uppercase font-black text-center outline-none border-2 border-transparent focus:border-emerald-500" />
-                    <button onClick={() => onJoinSuccess(inputRef.current?.value)} className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black active:scale-95 transition">Join</button>
+
+            {/* ACTION BUTTONS */}
+            <div className="space-y-4 max-w-sm mx-auto w-full">
+                
+                <button 
+                    onClick={() => onNavigate('setup')} 
+                    className="w-full bg-emerald-600 text-white p-6 rounded-[2rem] font-black text-xl shadow-lg active:scale-95 transition flex justify-center items-center gap-3"
+                >
+                    <Flag size={24} fill="currentColor" /> Start a Round
+                </button>
+
+                {/* NEW: SPECTATE BUTTON */}
+                <button 
+                    onClick={() => onNavigate('spectate')} 
+                    className="w-full bg-blue-50 text-blue-600 p-6 rounded-[2rem] font-black text-xl border border-blue-100 shadow-sm active:scale-95 transition flex justify-center items-center gap-3"
+                >
+                    <Activity size={24} /> Watch Live Games
+                </button>
+                
+                <div className="w-full bg-white p-3 rounded-[2rem] shadow-sm border border-slate-200 flex gap-2 mt-4">
+                    <input 
+                        ref={inputRef} 
+                        type="text" 
+                        placeholder="GAME CODE" 
+                        maxLength={5} 
+                        className="flex-1 min-w-0 p-4 bg-slate-50 rounded-2xl uppercase font-black text-center outline-none border-2 border-transparent focus:border-emerald-500 placeholder:text-slate-300" 
+                    />
+                    <button 
+                        onClick={() => onJoinSuccess(inputRef.current?.value)} 
+                        className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black active:scale-95 transition"
+                    >
+                        Join
+                    </button>
                 </div>
             </div>
+
         </div>
     );
 }
 
 /**
- * 3. THE UPDATED SETUP SCREEN (With Back Button)
+ * 2. THE UPDATED SETUP SCREEN (With GPS Auto-Locate)
  */
 export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
     const [mode, setMode] = useState('Stroke Play');
     const [course, setCourse] = useState('');
     const [holes, setHoles] = useState(18);
     const [maxScore, setMaxScore] = useState('None');
+    const [isPrivate, setIsPrivate] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
     const [entries, setEntries] = useState([]);
     const [nameInput, setNameInput] = useState('');
     const [memberInput, setMemberInput] = useState('');
     const [activeTeamId, setActiveTeamId] = useState(null);
+    
+    // NEW: Loading state for the GPS
+    const [isLocating, setIsLocating] = useState(false);
 
     const modeDescriptions = {
         'Scramble': 'Team play. Everyone hits, you pick the best shot. Record 1 score per team.',
@@ -205,6 +231,68 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
         setMemberInput('');
     };
 
+    // NEW: The GPS Auto-Locate Magic (No API Key Required!)
+    // NEW & IMPROVED: GPS Auto-Locate with True Distance Sorting
+    const handleFindNearest = () => {
+        if (!navigator.geolocation) {
+            return showToast("GPS not supported by your browser", true);
+        }
+
+        setIsLocating(true);
+        showToast("Finding nearest course... 🛰️");
+
+        // Helper function to calculate exact distance between two GPS coordinates
+        const getDistance = (lat1, lon1, lat2, lon2) => {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        };
+
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+                // Search OpenStreetMap within 15km
+                const query = `[out:json];way(around:15000,${latitude},${longitude})["leisure"="golf_course"];out center;`;
+                const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                if (data.elements && data.elements.length > 0) {
+                    // Filter out courses that don't have a name or a center coordinate
+                    let namedCourses = data.elements.filter(e => e.tags && e.tags.name && e.center);
+                    
+                    if (namedCourses.length > 0) {
+                        // SORT THE COURSES BY ACTUAL DISTANCE FROM YOUR PHONE
+                        namedCourses.sort((a, b) => {
+                            const distA = getDistance(latitude, longitude, a.center.lat, a.center.lon);
+                            const distB = getDistance(latitude, longitude, b.center.lat, b.center.lon);
+                            return distA - distB;
+                        });
+
+                        // Grab the absolute closest one!
+                        const closestCourse = namedCourses[0].tags.name;
+                        setCourse(closestCourse);
+                        showToast(`Found: ${closestCourse}! 📍`);
+                    } else {
+                        showToast("Found a course, but it has no name.", true);
+                    }
+                } else {
+                    showToast("No courses found within 15km.", true);
+                }
+            } catch (err) {
+                showToast("Map search failed. Try typing it.", true);
+            } finally {
+                setIsLocating(false);
+            }
+        }, (err) => {
+            setIsLocating(false);
+            showToast("Please allow location access!", true);
+        });
+    };
+
     const handleStart = async () => {
         if (entries.length === 0) return showToast(`Add at least one ${isTeamMode ? 'team' : 'player'}!`, true);
         if (mode === 'Match Play' && entries.length !== 2) return showToast("Match Play requires exactly 2 sides!", true);
@@ -216,6 +304,7 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
             holes: holeCount, 
             mode, 
             maxScore,
+            isPrivate, 
             pars: Array(holeCount).fill(4), 
             players: entries.map(e => ({ ...e, scores: e.scores.slice(0, holeCount) })), 
             createdAt: new Date().toISOString(),
@@ -230,7 +319,6 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
     return (
         <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-6 bg-slate-50 no-scrollbar">
             
-            {/* NEW: BACK TO LOBBY BUTTON */}
             <button 
                 onClick={() => onNavigate('lobby')}
                 className="mb-6 flex items-center gap-1 text-slate-400 font-black uppercase tracking-widest text-[10px] active:scale-95 active:text-slate-600 transition-all w-fit"
@@ -241,10 +329,8 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
 
             <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tighter uppercase leading-none">Round Setup</h2>
             
-            {/* GAME SETTINGS CARD */}
             <div className="space-y-6 bg-white p-6 rounded-[2.5rem] border border-slate-200 mb-6 shadow-sm">
                 
-                {/* Mode Selector */}
                 <div>
                     <div className="flex justify-between items-center mb-2 px-1">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
@@ -260,15 +346,23 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
                     </select>
                 </div>
 
-                {/* Autocomplete Course Input */}
+                {/* UPDATED COURSE INPUT WITH GPS BUTTON */}
                 <div className="space-y-2 relative z-20">
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1 flex items-center gap-2">
                         <MapPin size={14}/> Course Name
                     </label>
-                    <CourseInput value={course} onChange={setCourse} />
+                    <div className="flex gap-2">
+                        <CourseInput value={course} onChange={setCourse} />
+                        <button 
+                            onClick={handleFindNearest}
+                            disabled={isLocating}
+                            className={`w-14 shrink-0 rounded-2xl flex items-center justify-center transition-all ${isLocating ? 'bg-slate-200 text-slate-400 animate-pulse' : 'bg-emerald-100 text-emerald-600 active:bg-emerald-200 active:scale-90'}`}
+                        >
+                            <LocateFixed size={20} />
+                        </button>
+                    </div>
                 </div>
 
-                {/* Length & Max Score */}
                 <div className="grid grid-cols-2 gap-3 relative z-10">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Length</label>
@@ -285,9 +379,25 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
                         </select>
                     </div>
                 </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-3">
+                        {isPrivate ? <EyeOff size={18} className="text-slate-500" /> : <Globe size={18} className="text-emerald-600" />}
+                        <div>
+                            <p className="font-black text-slate-700 text-sm leading-tight">Private Game</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Hide from live lobby</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => setIsPrivate(!isPrivate)} 
+                        className={`w-12 h-6 rounded-full transition-all relative shadow-inner ${isPrivate ? 'bg-slate-700' : 'bg-emerald-400'}`}
+                    >
+                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 shadow-sm transition-all ${isPrivate ? 'right-1' : 'left-1'}`} />
+                    </button>
+                </div>
+
             </div>
 
-            {/* PLAYER/TEAM ROSTER CARD */}
             <div className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm relative z-0">
                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1 mb-4 block flex items-center gap-2">
                     <Users size={14}/> {isTeamMode ? 'Teams' : 'Players'}
@@ -312,7 +422,6 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
                                 <button onClick={() => setEntries(entries.filter(x => x.id !== e.id))}><Trash2 size={18} className="text-slate-300 hover:text-red-500 transition-colors"/></button>
                             </div>
                             
-                            {/* Sub-roster for Teams */}
                             {isTeamMode && (
                                 <div className="mt-3 pl-3 border-l-2 border-emerald-200">
                                     <div className="flex flex-wrap gap-2 mb-3">
@@ -344,19 +453,18 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
         </div>
     );
 }
-
 /**
  * 3. UPDATED SCORING SCREEN
  * Features: Team Roster display, Match Play standing, and tactile scoring controls.
  */
-export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore, onUpdatePar }) {
+export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore, onUpdatePar, isSpectator }) {
     if (!state) return null;
 
     const isStableford = state.mode === 'Stableford';
     const isSnake = state.mode === 'Snake';
     const isMatchPlay = state.mode === 'Match Play';
 
-    // Standing logic for Match Play (usually 1v1 or 2v2)
+    // Standing logic for Match Play (1v1 or 2v2)
     const matchStatus = isMatchPlay ? calculateMatchStatus(state.players) : null;
 
     return (
@@ -383,9 +491,14 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
                 <div className="text-center">
                     <h2 className="text-2xl font-black text-slate-900 leading-none uppercase italic tracking-tighter">Hole {currentHole + 1}</h2>
                     <div className="flex items-center gap-2 mt-2 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 mx-auto w-fit">
-                        <button onClick={() => onUpdatePar(-1)} className="text-emerald-700 font-black px-1 text-lg active:scale-125">-</button>
+                        {/* Hide Par adjustments if just spectating */}
+                        {!isSpectator && (
+                            <button onClick={() => onUpdatePar(-1)} className="text-emerald-700 font-black px-1 text-lg active:scale-125">-</button>
+                        )}
                         <span className="text-[10px] font-black uppercase text-emerald-800 tracking-widest min-w-[50px]">Par {state.pars[currentHole]}</span>
-                        <button onClick={() => onUpdatePar(1)} className="text-emerald-700 font-black px-1 text-lg active:scale-125">+</button>
+                        {!isSpectator && (
+                            <button onClick={() => onUpdatePar(1)} className="text-emerald-700 font-black px-1 text-lg active:scale-125">+</button>
+                        )}
                     </div>
                 </div>
                 
@@ -414,7 +527,7 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
                                     {p.name}
                                 </h3>
                                 
-                                {/* ROSTER VIEW: Shows team members for Scramble/Alternate */}
+                                {/* ROSTER VIEW: Shows team members for Scramble/Best Ball/Alternate */}
                                 {p.members && p.members.length > 0 && (
                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-0.5 truncate italic">
                                         {p.members.join(' • ')}
@@ -447,23 +560,35 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
                                 </div>
                             </div>
 
-                            {/* Tactile Score Controls */}
+                            {/* TACTILE CONTROLS OR SPECTATOR LOCK */}
                             <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-[1.5rem] border border-slate-100 shrink-0">
-                                <button 
-                                    onClick={() => onUpdateScore(idx, -1)} 
-                                    className="w-12 h-12 bg-white rounded-xl text-slate-400 font-black shadow-sm active:scale-90 active:bg-slate-100 transition-all flex items-center justify-center text-xl"
-                                >
-                                    <Minus size={20} />
-                                </button>
-                                <span className="w-10 text-center font-black text-3xl text-emerald-800 tabular-nums">
-                                    {score || '-'}
-                                </span>
-                                <button 
-                                    onClick={() => onUpdateScore(idx, 1)} 
-                                    className="w-12 h-12 bg-emerald-600 rounded-xl text-white font-black shadow-lg active:scale-90 active:bg-emerald-700 transition-all flex items-center justify-center text-xl"
-                                >
-                                    <Plus size={20} />
-                                </button>
+                                {!isSpectator ? (
+                                    <>
+                                        {/* Player Mode: Full +/- Controls */}
+                                        <button 
+                                            onClick={() => onUpdateScore(idx, -1)} 
+                                            className="w-12 h-12 bg-white rounded-xl text-slate-400 font-black shadow-sm active:scale-90 active:bg-slate-100 transition-all flex items-center justify-center text-xl"
+                                        >
+                                            <Minus size={20} />
+                                        </button>
+                                        <span className="w-10 text-center font-black text-3xl text-emerald-800 tabular-nums">
+                                            {score || '-'}
+                                        </span>
+                                        <button 
+                                            onClick={() => onUpdateScore(idx, 1)} 
+                                            className="w-12 h-12 bg-emerald-600 rounded-xl text-white font-black shadow-lg active:scale-90 active:bg-emerald-700 transition-all flex items-center justify-center text-xl"
+                                        >
+                                            <Plus size={20} />
+                                        </button>
+                                    </>
+                                ) : (
+                                    /* Spectator Mode: Read-Only Box */
+                                    <div className="w-24 h-12 bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
+                                        <span className="font-black text-3xl text-emerald-800 tabular-nums">
+                                            {score || '-'}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );
@@ -475,7 +600,6 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
         </div>
     );
 }
-
 /**
  * 4. LEADERBOARD SCREEN
  */
@@ -909,6 +1033,121 @@ export function FeedScreen({ state }) {
                         </div>
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+}
+/**
+ * NEW: SPECTATE SCREEN (Dedicated Live Feed Window)
+ */
+export function SpectateScreen({ db, onNavigate, onSpectate }) {
+    const [allLiveGames, setAllLiveGames] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [playerFilter, setPlayerFilter] = useState('All');
+
+    useEffect(() => {
+        const q = query(collection(db, 'games'), orderBy('createdAt', 'desc'), limit(50));
+        const unsub = onSnapshot(q, (snap) => {
+            const games = [];
+            snap.forEach(doc => {
+                games.push({ id: doc.id, ...doc.data() });
+            });
+            setAllLiveGames(games);
+        });
+        return () => unsub();
+    }, [db]);
+
+    const filteredGames = allLiveGames.filter(game => {
+        if (game.isPrivate) return false;
+        const matchesSearch = game.courseName?.toLowerCase().includes(searchQuery.toLowerCase());
+        const playerCount = game.players?.length || 0;
+        let matchesPlayers = true;
+        
+        if (playerFilter === '1-2') matchesPlayers = playerCount >= 1 && playerCount <= 2;
+        else if (playerFilter === '3-4') matchesPlayers = playerCount >= 3 && playerCount <= 4;
+        else if (playerFilter === '5+') matchesPlayers = playerCount >= 5;
+
+        return matchesSearch && matchesPlayers;
+    });
+
+    return (
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-6 bg-slate-50 no-scrollbar">
+            
+            {/* BACK BUTTON */}
+            <button 
+                onClick={() => onNavigate('lobby')}
+                className="mb-6 flex items-center gap-1 text-slate-400 font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all w-fit"
+            >
+                <ChevronLeft size={16} strokeWidth={3} />
+                Back to Lobby
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+                <div className="bg-red-100 p-2 rounded-xl">
+                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                </div>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none italic">
+                    Live Games
+                </h2>
+            </div>
+
+            {/* SEARCH & FILTER CONTROLS */}
+            <div className="flex gap-2 mb-6">
+                <div className="flex-1 relative">
+                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                        type="text" 
+                        placeholder="Search course..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-10 pr-4 text-xs font-bold text-slate-700 outline-none focus:border-emerald-500 transition-colors shadow-sm"
+                    />
+                </div>
+                
+                <div className="relative shrink-0">
+                    <select 
+                        value={playerFilter}
+                        onChange={(e) => setPlayerFilter(e.target.value)}
+                        className="appearance-none bg-white border border-slate-200 rounded-2xl py-3 pl-10 pr-8 text-xs font-black text-slate-700 outline-none focus:border-emerald-500 transition-colors shadow-sm cursor-pointer"
+                    >
+                        <option value="All">All Sizes</option>
+                        <option value="1-2">1-2 Players</option>
+                        <option value="3-4">3-4 Players</option>
+                        <option value="5+">5+ Players</option>
+                    </select>
+                    <Filter size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600" />
+                    <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 pointer-events-none" />
+                </div>
+            </div>
+
+            {/* THE FEED */}
+            <div className="space-y-3">
+                {filteredGames.length > 0 ? filteredGames.map((game) => (
+                    <div 
+                        key={game.id} 
+                        onClick={() => onSpectate(game.id)}
+                        className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm active:scale-95 transition-all cursor-pointer flex justify-between items-center group hover:border-emerald-300"
+                    >
+                        <div>
+                            <h4 className="font-black text-slate-900 text-lg leading-none mb-1 uppercase tracking-tight group-hover:text-emerald-700 transition-colors">
+                                {game.courseName}
+                            </h4>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                {game.mode} • {game.players?.length || 0} {game.players?.length === 1 ? 'Player' : 'Players'}
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest">
+                                Watch
+                            </span>
+                        </div>
+                    </div>
+                )) : (
+                    <div className="bg-slate-100 p-8 rounded-[2rem] text-center border border-slate-200 border-dashed">
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No games found</p>
+                        <p className="text-[10px] font-bold text-slate-400 mt-1">Try adjusting your filters!</p>
+                    </div>
+                )}
             </div>
         </div>
     );

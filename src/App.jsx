@@ -3,21 +3,21 @@ import { db } from './firebase';
 import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getPlayerStats, generateGameCode } from './utils';
 
-// UI Components - Added MenuOverlay here
+// UI Components
 import { Header, Navigation, SplashScreen, MenuOverlay } from './Components/UI';
 
 // Screen Components
 import { 
     ScoringScreen, LeaderboardScreen, StatsScreen, 
     LobbyScreen, SetupScreen, ScorecardScreen,
-    SummaryScreen, FeedScreen 
+    SummaryScreen, FeedScreen, SpectateScreen // <--- Added SpectateScreen here!
 } from './Components/Screens';
 
 export default function App() {
     // 1. APP & PERSISTENCE STATES (Top Level)
     const [showSplash, setShowSplash] = useState(true);
     const [isExiting, setIsExiting] = useState(false);
-    const [isMenuOpen, setIsMenuOpen] = useState(false); // Menu control state
+    const [isMenuOpen, setIsMenuOpen] = useState(false); 
     
     // Initialize from LocalStorage so the app doesn't reset on refresh
     const [gameCode, setGameCode] = useState(() => localStorage.getItem('ykts_gameCode') || null);
@@ -27,6 +27,9 @@ export default function App() {
     const [gameState, setGameState] = useState(null);
     const [currentHole, setCurrentHole] = useState(0);
     const [toast, setToast] = useState({ show: false, msg: '', isError: false });
+    
+    // Spectator State
+    const [isSpectator, setIsSpectator] = useState(false);
 
     // 2. SAVE TO LOCALSTORAGE
     useEffect(() => {
@@ -54,7 +57,6 @@ export default function App() {
         const unsub = onSnapshot(doc(db, 'games', gameCode), (doc) => {
             if (doc.exists()) {
                 setGameState(doc.data());
-                // If we have a valid game, make sure we aren't stuck on the lobby/setup
                 if (view === 'lobby' || view === 'setup') setView('game');
             } else {
                 handleLeaveGame();
@@ -62,6 +64,19 @@ export default function App() {
         });
         return () => unsub();
     }, [gameCode]);
+    // MAGIC LINK LISTENER: Check for ?join=CODE in the URL when the app first loads
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const joinCode = params.get('join');
+
+        if (joinCode) {
+            // 1. Join the game automatically!
+            handleJoinGame(joinCode);
+
+            // 2. Clean up the URL bar so if they refresh, it doesn't get stuck in a loop
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, []);
 
     // 5. HANDLERS
     const handleShowToast = (msg, isError = false) => {
@@ -86,6 +101,7 @@ export default function App() {
         localStorage.removeItem('ykts_view');
         setGameCode(null);
         setGameState(null);
+        setIsSpectator(false); // Reset spectator status when leaving
         setView('lobby');
     };
 
@@ -101,7 +117,6 @@ export default function App() {
         
         const isStableford = gameState.mode === 'Stableford';
         
-        // Lead Change Helper
         const getLeaderId = (players) => {
             const sorted = [...players].sort((a, b) => {
                 const sA = getPlayerStats(a, gameState.pars, gameState.mode);
@@ -124,7 +139,6 @@ export default function App() {
         const leaderAfter = getLeaderId(newPlayers);
         let feedMessages = [];
 
-        // Commentary Logic (Birdies/Eagles)
         if (oldScore === 0 && newScore > 0) {
             const diff = newScore - par;
             if (newScore === 1) feedMessages.push(`🎯 HOLE IN ONE! ${player.name} on Hole ${currentHole + 1}!`);
@@ -132,7 +146,6 @@ export default function App() {
             else if (diff === -1) feedMessages.push(`🐦 Birdie! ${player.name} on Hole ${currentHole + 1}.`);
         }
 
-        // Leader Change Logic
         if (leaderBefore !== leaderAfter && leaderAfter) {
             const newLeader = newPlayers.find(p => p.id === leaderAfter);
             feedMessages.push(`📈 NEW LEADER! ${newLeader.name} takes the lead!`);
@@ -158,7 +171,6 @@ export default function App() {
         <div className="h-[100dvh] w-full flex flex-col bg-slate-50 overflow-hidden fixed inset-0">
             {showSplash && <SplashScreen isExiting={isExiting} />}
 
-            {/* NEW: MENU OVERLAY (Safeguard) */}
             <MenuOverlay 
                 isOpen={isMenuOpen} 
                 onClose={() => setIsMenuOpen(false)} 
@@ -166,25 +178,45 @@ export default function App() {
                     setIsMenuOpen(false); 
                     setView('summary'); 
                 }}
+                /* NEW PROPS FOR THE MENU */
+                onLeaveGame={() => {
+                    setIsMenuOpen(false);
+                    handleLeaveGame();
+                }}
+                gameId={gameCode}
                 mode={gameState?.mode}
+                showToast={handleShowToast}
             />
 
-            {/* HEADER - Updated to open menu */}
+            {/* HEADER - Now receives isSpectator */}
             {view === 'game' && (
                 <Header 
                     gameId={gameCode} 
                     courseName={gameState?.courseName} 
                     onMenuOpen={() => setIsMenuOpen(true)} 
+                    isSpectator={isSpectator} 
                 />
             )}
 
-            {/* MAIN CONTENT AREA */}
             <main className="flex-1 flex flex-col relative overflow-hidden">
+                
+                {/* LOBBY - Now passes db and handles spectating */}
                 {view === 'lobby' && (
                     <LobbyScreen 
+                        db={db}
                         onNavigate={setView} 
-                        onJoinSuccess={handleJoinGame} 
+                        onJoinSuccess={(c) => { handleJoinGame(c); setIsSpectator(false); }} 
+                        onSpectate={(c) => { handleJoinGame(c); setIsSpectator(true); }}
                         showToast={handleShowToast} 
+                    />
+                )}
+                
+                {/* NEW: SPECTATE SCREEN */}
+                {view === 'spectate' && (
+                    <SpectateScreen 
+                        db={db}
+                        onNavigate={setView}
+                        onSpectate={(c) => { handleJoinGame(c); setIsSpectator(true); }}
                     />
                 )}
 
@@ -200,6 +232,8 @@ export default function App() {
                 {view === 'game' && gameState && (
                     <div className="flex-1 flex flex-col overflow-hidden">
                         <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+                            
+                            {/* SCORING - Now receives isSpectator */}
                             {activeTab === 'scoring' && (
                                 <ScoringScreen 
                                     state={gameState}
@@ -207,8 +241,10 @@ export default function App() {
                                     onHoleChange={setCurrentHole}
                                     onUpdateScore={handleUpdateScore}
                                     onUpdatePar={handleUpdatePar}
+                                    isSpectator={isSpectator} 
                                 />
                             )}
+                            
                             {activeTab === 'leaderboard' && <LeaderboardScreen state={gameState} />}
                             {activeTab === 'stats' && <StatsScreen state={gameState} />}
                             {activeTab === 'feed' && <FeedScreen state={gameState} />}
@@ -223,17 +259,17 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Replace your current SummaryScreen call in App.jsx with this: */}
-{view === 'summary' && (
-    <SummaryScreen 
-        state={gameState} 
-        onLeave={handleLeaveGame} 
-        showToast={handleShowToast}
-    />
-)}
+                {/* SUMMARY - Fixed the missing onBack prop! */}
+                {view === 'summary' && (
+                    <SummaryScreen 
+                        state={gameState} 
+                        onLeave={handleLeaveGame} 
+                        showToast={handleShowToast}
+                        onBack={() => setView('game')} 
+                    />
+                )}
             </main>
 
-            {/* NAVIGATION */}
             {view === 'game' && (
                 <Navigation 
                     current={activeTab} 
@@ -241,7 +277,6 @@ export default function App() {
                 />
             )}
 
-            {/* GLOBAL TOAST */}
             {toast.show && (
                 <div className={`fixed top-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl text-white font-black shadow-2xl z-[200] animate-in slide-in-from-top duration-300 ${toast.isError ? 'bg-red-500' : 'bg-emerald-600'}`}>
                     {toast.msg}
