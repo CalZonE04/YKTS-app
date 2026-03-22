@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
-import { doc, onSnapshot, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { getPlayerStats, generateGameCode } from './utils';
 
 // UI Components
@@ -42,12 +42,38 @@ export default function App() {
         }
     }, [gameCode, view]);
 
-    // 3. SPLASH SCREEN TIMER
+    // 3. SPLASH SCREEN & DATABASE JANITOR
     useEffect(() => {
+        // The Janitor Function: Deletes games older than 24 hours
+        const cleanupOldGames = async () => {
+            try {
+                // Calculate exactly 24 hours ago
+                const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+                
+                // Ask Firebase: "Find all games created before yesterday"
+                const q = query(collection(db, 'games'), where('createdAt', '<', yesterday));
+                const snapshot = await getDocs(q);
+                
+                // Silently delete them one by one
+                snapshot.forEach(async (gameDoc) => {
+                    await deleteDoc(doc(db, 'games', gameDoc.id));
+                });
+                
+                if (!snapshot.empty) console.log(`🧹 Janitor swept up ${snapshot.size} old games.`);
+            } catch (err) {
+                console.log("Cleanup skipped/failed", err);
+            }
+        };
+
+        // Run the cleanup in the background
+        cleanupOldGames();
+
+        // Standard Splash Screen Timer
         const timer = setTimeout(() => {
             setIsExiting(true);
             setTimeout(() => setShowSplash(false), 500);
         }, 2000);
+        
         return () => clearTimeout(timer);
     }, []);
 
