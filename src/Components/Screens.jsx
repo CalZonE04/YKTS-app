@@ -11,6 +11,129 @@ import {
 import { doc, setDoc } from 'firebase/firestore';
 import * as htmlToImage from 'html-to-image';
 
+// 1. YOUR LOCAL COURSE DATABASE
+// Add your usual spots here!
+const COURSE_DATABASE = [
+    // Your Locals & Favorites
+    "Aintree Golf Centre",
+    
+    // UK & Ireland (The Classics)
+    "St. Andrews (Old Course)",
+    "St. Andrews (Castle Course)",
+    "Muirfield",
+    "Royal County Down",
+    "Royal Portrush (Dunluce)",
+    "Royal Birkdale",
+    "Royal St George's",
+    "Royal Lytham & St Annes",
+    "Royal Troon",
+    "Carnoustie Golf Links",
+    "Turnberry (Ailsa)",
+    "Sunningdale (Old)",
+    "Sunningdale (New)",
+    "Ballybunion (Old)",
+    "Lahinch",
+    "Gleneagles (PGA Centenary)",
+    "Gleneagles (King's)",
+    "Wentworth (West)",
+    "Kingsbarns",
+    "Trump International Scotland",
+
+    // USA (Majors & Bucket List)
+    "Augusta National",
+    "Pebble Beach Golf Links",
+    "Pinehurst No. 2",
+    "Pine Valley Golf Club",
+    "Cypress Point Club",
+    "Shinnecock Hills",
+    "Oakmont Country Club",
+    "Merion Golf Club",
+    "Bethpage Black",
+    "Whistling Straits (Straits)",
+    "Kiawah Island (Ocean Course)",
+    "TPC Sawgrass (Stadium)",
+    "Torrey Pines (South)",
+    "Torrey Pines (North)",
+    "Bandon Dunes",
+    "Pacific Dunes",
+    "Riviera Country Club",
+    "Los Angeles Country Club",
+    "Winged Foot (West)",
+    "Muirfield Village",
+    "Shadow Creek",
+    "Spyglass Hill",
+    "Kapalua (Plantation)",
+    "Erin Hills",
+    "Chambers Bay",
+    "East Lake Golf Club",
+    "Bay Hill Club & Lodge",
+    "Harbour Town Golf Links",
+
+    // Rest of the World
+    "Royal Melbourne (West) - AUS",
+    "Kingston Heath - AUS",
+    "Tara Iti - NZ",
+    "Cape Kidnappers - NZ",
+    "Cabot Cliffs - CAN",
+    "Cabot Links - CAN",
+    "St. George's - CAN",
+    "Valderrama - ESP",
+    "Morfontaine - FRA",
+    "Leopard Creek - RSA",
+    "Hirono - JPN"
+];
+
+// 2. THE CUSTOM AUTOCOMPLETE COMPONENT
+function CourseInput({ value, onChange }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [suggestions, setSuggestions] = useState([]);
+
+    const handleTextChange = (e) => {
+        const text = e.target.value;
+        onChange(text); // Updates the parent state
+        
+        if (text.length > 0) {
+            // Filter the database for matches
+            const matches = COURSE_DATABASE.filter(c => 
+                c.toLowerCase().includes(text.toLowerCase())
+            );
+            setSuggestions(matches);
+            setIsOpen(true);
+        } else {
+            setIsOpen(false);
+        }
+    };
+
+    return (
+        <div className="relative w-full z-50">
+            <input 
+                placeholder="e.g. Aintree Golf Centre" 
+                value={value} 
+                onChange={handleTextChange}
+                onFocus={() => value.length > 0 && setIsOpen(true)}
+                onBlur={() => setTimeout(() => setIsOpen(false), 200)} // Delay allows click to register
+                className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold text-slate-700 focus:border-emerald-500 border-2 border-transparent transition-colors" 
+            />
+            
+            {/* DROPDOWN MENU */}
+            {isOpen && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                    {suggestions.map((course, idx) => (
+                        <div
+                            key={idx}
+                            onClick={() => { onChange(course); setIsOpen(false); }}
+                            className="p-4 hover:bg-emerald-50 active:bg-emerald-100 font-bold text-slate-700 text-sm border-b border-slate-50 last:border-0 cursor-pointer flex items-center gap-3 transition-colors"
+                        >
+                            <MapPin size={16} className="text-emerald-500" />
+                            {course}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 /**
  * 1. LOBBY SCREEN
  */
@@ -43,7 +166,7 @@ export function LobbyScreen({ onNavigate, onJoinSuccess, showToast }) {
 }
 
 /**
- * 2. SETUP SCREEN
+ * 3. THE UPDATED SETUP SCREEN (With Back Button)
  */
 export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
     const [mode, setMode] = useState('Stroke Play');
@@ -57,17 +180,16 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
     const [activeTeamId, setActiveTeamId] = useState(null);
 
     const modeDescriptions = {
-        'Scramble': 'Team play. Everyone hits, you pick the best shot. Record one score per team.',
-        'Best Ball': 'Teammates play their own balls. The lowest score on each hole counts.',
-        'Alternate': 'Teammates take turns hitting the same ball until it is holed.',
+        'Scramble': 'Team play. Everyone hits, you pick the best shot. Record 1 score per team.',
+        'Best Ball': 'Team play. Everyone plays their own ball. The lowest score counts. Record 1 score per team.',
+        'Alternate': 'Teammates take turns hitting the same ball until it is holed. Record 1 score per team.',
         'Snake': 'Track 3-putts! The last person to 3-putt is the "Snake".',
-        'Stableford': 'Points vs Par. Par=2, Birdie=3.',
-        'Stroke Play': 'Traditional golf. Every shot counts.',
+        'Stableford': 'Points vs Par. Par=2, Birdie=3. High points win!',
+        'Stroke Play': 'Traditional golf. Every shot counts. Lowest score wins.',
         'Match Play': 'Hole-by-hole rivalry. Win the hole, win a point.'
     };
 
-    
-const isTeamMode = mode === 'Scramble' || mode === 'Alternate' || mode === 'Best Ball';
+    const isTeamMode = mode === 'Scramble' || mode === 'Alternate' || mode === 'Best Ball';
 
     const addEntry = () => {
         if (!nameInput.trim()) return;
@@ -84,15 +206,18 @@ const isTeamMode = mode === 'Scramble' || mode === 'Alternate' || mode === 'Best
     };
 
     const handleStart = async () => {
-        if (entries.length === 0) return showToast(`Add a ${isTeamMode ? 'team' : 'player'}!`, true);
+        if (entries.length === 0) return showToast(`Add at least one ${isTeamMode ? 'team' : 'player'}!`, true);
+        if (mode === 'Match Play' && entries.length !== 2) return showToast("Match Play requires exactly 2 sides!", true);
+
         const code = generateGameCode();
+        const holeCount = Number(holes);
         const state = { 
             courseName: course || 'Local Course', 
-            holes: Number(holes), 
+            holes: holeCount, 
             mode, 
             maxScore,
-            pars: Array(Number(holes)).fill(4), 
-            players: entries.map(e => ({ ...e, scores: e.scores.slice(0, Number(holes)) })), 
+            pars: Array(holeCount).fill(4), 
+            players: entries.map(e => ({ ...e, scores: e.scores.slice(0, holeCount) })), 
             createdAt: new Date().toISOString(),
             feed: []
         };
@@ -103,21 +228,48 @@ const isTeamMode = mode === 'Scramble' || mode === 'Alternate' || mode === 'Best
     };
 
     return (
-        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-6 bg-slate-50">
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-6 bg-slate-50 no-scrollbar">
+            
+            {/* NEW: BACK TO LOBBY BUTTON */}
+            <button 
+                onClick={() => onNavigate('lobby')}
+                className="mb-6 flex items-center gap-1 text-slate-400 font-black uppercase tracking-widest text-[10px] active:scale-95 active:text-slate-600 transition-all w-fit"
+            >
+                <ChevronLeft size={16} strokeWidth={3} />
+                Back to Lobby
+            </button>
+
             <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tighter uppercase leading-none">Round Setup</h2>
+            
+            {/* GAME SETTINGS CARD */}
             <div className="space-y-6 bg-white p-6 rounded-[2.5rem] border border-slate-200 mb-6 shadow-sm">
+                
+                {/* Mode Selector */}
                 <div>
                     <div className="flex justify-between items-center mb-2 px-1">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Game Mode</label>
-                        <button onClick={() => setShowInfo(!showInfo)} className="text-[10px] font-black text-emerald-600 underline">Info</button>
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                           <Layers size={14}/> Game Mode
+                        </label>
+                        <button onClick={() => setShowInfo(!showInfo)} className="text-[10px] font-black text-emerald-600 underline">
+                            {showInfo ? 'Close Info' : 'Rules'}
+                        </button>
                     </div>
-                    {showInfo && <div className="mb-4 p-4 bg-emerald-50 rounded-2xl text-xs font-bold text-emerald-800">{modeDescriptions[mode]}</div>}
-                    <select value={mode} onChange={e => { setMode(e.target.value); setEntries([]); }} className="w-full p-4 bg-slate-50 rounded-2xl font-black text-emerald-800 outline-none">
+                    {showInfo && <div className="mb-4 p-4 bg-emerald-50 rounded-2xl text-xs font-bold text-emerald-800 animate-in slide-in-from-top">{modeDescriptions[mode]}</div>}
+                    <select value={mode} onChange={e => { setMode(e.target.value); setEntries([]); }} className="w-full p-4 bg-slate-50 rounded-2xl font-black text-emerald-800 outline-none border-2 border-transparent focus:border-emerald-500">
                         {Object.keys(modeDescriptions).map(m => <option key={m}>{m}</option>)}
                     </select>
                 </div>
-                <input placeholder="Course Name" value={course} onChange={e => setCourse(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold" />
-                <div className="grid grid-cols-2 gap-3">
+
+                {/* Autocomplete Course Input */}
+                <div className="space-y-2 relative z-20">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1 flex items-center gap-2">
+                        <MapPin size={14}/> Course Name
+                    </label>
+                    <CourseInput value={course} onChange={setCourse} />
+                </div>
+
+                {/* Length & Max Score */}
+                <div className="grid grid-cols-2 gap-3 relative z-10">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Length</label>
                         <div className="flex p-1 bg-slate-100 rounded-2xl">
@@ -134,33 +286,61 @@ const isTeamMode = mode === 'Scramble' || mode === 'Alternate' || mode === 'Best
                     </div>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1 mb-4 block">{isTeamMode ? 'Teams' : 'Players'}</label>
+
+            {/* PLAYER/TEAM ROSTER CARD */}
+            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm relative z-0">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1 mb-4 block flex items-center gap-2">
+                    <Users size={14}/> {isTeamMode ? 'Teams' : 'Players'}
+                </label>
+                
                 <div className="flex gap-2 mb-6">
-                    <input value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder={isTeamMode ? "Team Name..." : "Player Name..."} className="flex-1 p-4 bg-slate-50 rounded-2xl outline-none font-bold" />
-                    <button onClick={addEntry} className="bg-emerald-600 text-white p-4 rounded-2xl"><Plus /></button>
+                    <input 
+                        value={nameInput} 
+                        onChange={e => setNameInput(e.target.value)} 
+                        onKeyDown={(ev) => ev.key === 'Enter' && addEntry()}
+                        placeholder={isTeamMode ? "Team Name..." : "Player Name..."} 
+                        className="flex-1 p-4 bg-slate-50 rounded-2xl outline-none font-bold" 
+                    />
+                    <button onClick={addEntry} className="bg-emerald-600 text-white p-4 rounded-2xl active:scale-90 transition-all"><Plus /></button>
                 </div>
-                {entries.map(e => (
-                    <div key={e.id} className="p-4 bg-slate-50 rounded-3xl border border-slate-100 mb-3">
-                        <div className="flex justify-between items-center">
-                            <span className="font-black uppercase text-emerald-800">{e.name}</span>
-                            <button onClick={() => setEntries(entries.filter(x => x.id !== e.id))}><Trash2 size={18} className="text-slate-300"/></button>
-                        </div>
-                        {isTeamMode && (
-                            <div className="mt-3 pl-2 border-l-2 border-emerald-200">
-                                <div className="flex flex-wrap gap-2 mb-2">
-                                    {e.members.map((m, i) => <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-black text-slate-500 border border-slate-100">{m}</span>)}
-                                </div>
-                                <div className="flex gap-2">
-                                    <input value={activeTeamId === e.id ? memberInput : ''} onFocus={() => setActiveTeamId(e.id)} onChange={e => setMemberInput(e.target.value)} placeholder="Add Player..." className="flex-1 bg-transparent text-xs font-bold outline-none border-b border-slate-200" />
-                                    <button onClick={() => addMember(e.id)} className="text-emerald-600 font-black text-[10px] uppercase">Add</button>
-                                </div>
+
+                <div className="space-y-3">
+                    {entries.map(e => (
+                        <div key={e.id} className="p-4 bg-slate-50 rounded-3xl border border-slate-100 animate-in slide-in-from-right duration-300">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="font-black uppercase text-emerald-800 tracking-tight">{e.name}</span>
+                                <button onClick={() => setEntries(entries.filter(x => x.id !== e.id))}><Trash2 size={18} className="text-slate-300 hover:text-red-500 transition-colors"/></button>
                             </div>
-                        )}
-                    </div>
-                ))}
+                            
+                            {/* Sub-roster for Teams */}
+                            {isTeamMode && (
+                                <div className="mt-3 pl-3 border-l-2 border-emerald-200">
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {e.members.map((m, i) => (
+                                            <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-black text-slate-500 border border-slate-100 uppercase">{m}</span>
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            value={activeTeamId === e.id ? memberInput : ''} 
+                                            onFocus={() => setActiveTeamId(e.id)} 
+                                            onChange={e => setMemberInput(e.target.value)} 
+                                            onKeyDown={(ev) => ev.key === 'Enter' && addMember(e.id)} 
+                                            placeholder="Add Player to Team..." 
+                                            className="flex-1 bg-transparent text-xs font-bold outline-none border-b border-slate-200 py-1" 
+                                        />
+                                        <button onClick={() => addMember(e.id)} className="text-emerald-600 font-black text-[10px] uppercase">Add</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
-            <button onClick={handleStart} className="mt-8 w-full bg-emerald-600 text-white p-6 rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all">Tee Off</button>
+
+            <button onClick={handleStart} className="mt-8 w-full bg-emerald-600 text-white p-6 rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
+                <Flag size={24} fill="white" /> Tee Off!
+            </button>
         </div>
     );
 }

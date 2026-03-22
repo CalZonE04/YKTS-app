@@ -223,13 +223,14 @@ export default function App() {
                     </div>
                 )}
 
-                {view === 'summary' && (
-                    <SummaryScreen 
-                        state={gameState} 
-                        onLeave={handleLeaveGame} 
-                        showToast={handleShowToast}
-                    />
-                )}
+                {/* Replace your current SummaryScreen call in App.jsx with this: */}
+{view === 'summary' && (
+    <SummaryScreen 
+        state={gameState} 
+        onLeave={handleLeaveGame} 
+        showToast={handleShowToast}
+    />
+)}
             </main>
 
             {/* NAVIGATION */}
