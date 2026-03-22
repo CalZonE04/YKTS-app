@@ -184,12 +184,13 @@ export default function App() {
                     </div>
                 )}
 
-                {view === 'summary' && (
-                    <SummaryScreen 
-                        state={gameState} 
-                        onLeave={() => { setGameCode(null); setView('lobby'); }} 
-                    />
-                )}
+{view === 'summary' && (
+    <SummaryScreen 
+        state={gameState} 
+        onLeave={() => { setGameCode(null); setView('lobby'); }} 
+        showToast={handleShowToast} // <--- ADD THIS LINE
+    />
+)}
             </main>
 
             {/* NAVIGATION (Only show if in game) */}

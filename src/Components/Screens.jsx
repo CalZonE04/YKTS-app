@@ -4,7 +4,10 @@ import {
     Minus, Target, BarChart2, Share, CheckCircle2, Home,
     Settings, Users, Layers, MapPin, Trash2
 } from 'lucide-react';
-import { getPlayerStats, formatRel, generateGameCode, getHolePoints } from '../utils';
+import { 
+    getPlayerStats, formatRel, generateGameCode, 
+    getHolePoints, calculateMatchStatus // <--- ADD THIS
+} from '../utils';
 import { doc, setDoc } from 'firebase/firestore';
 import * as htmlToImage from 'html-to-image';
 /**
@@ -570,10 +573,10 @@ export function ScorecardScreen({ state, currentHole, onHoleSelect }) {
 /**
  * 7. SUMMARY SCREEN (With Save to Camera Roll)
  */
-export function SummaryScreen({ state, onLeave }) {
-    const cardRef = useRef(null); // The lens
+export function SummaryScreen({ state, onLeave, showToast }) { // <--- ADD showToast HERE
+    const cardRef = useRef(null); 
     const [saving, setSaving] = useState(false);
-
+    
     if (!state) return null;
     const ranked = [...state.players].sort((a, b) => {
         const statsA = getPlayerStats(a, state.pars);
