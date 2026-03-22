@@ -132,11 +132,43 @@ export default function App() {
         } catch (err) {
             handleShowToast("Sync failed", true);
         }
+        // Inside your App component...
+
+// 1. Initialize state from LocalStorage if it exists
+const [gameCode, setGameCode] = useState(localStorage.getItem('ykts_gameCode') || null);
+const [view, setView] = useState(localStorage.getItem('ykts_view') || 'lobby');
+
+// 2. Add an effect to save state whenever it changes
+useEffect(() => {
+    if (gameCode) {
+        localStorage.setItem('ykts_gameCode', gameCode);
+        localStorage.setItem('ykts_view', view);
+    } else {
+        localStorage.removeItem('ykts_gameCode');
+        localStorage.setItem('ykts_view', 'lobby');
+    }
+}, [gameCode, view]);
+
+// 3. Update handleJoinGame and handleCreateGame to set the view
+const handleJoinGame = (code) => {
+    const cleanCode = code.toUpperCase();
+    setGameCode(cleanCode);
+    setView('game'); // Ensure view is updated to trigger persistence
+};
+
+// 4. Update the "Leave Game" or "Clubhouse Lobby" button logic
+const handleLeaveGame = () => {
+    localStorage.removeItem('ykts_gameCode');
+    localStorage.removeItem('ykts_view');
+    setGameCode(null);
+    setGameState(null);
+    setView('lobby');
+};
     };
 
     // 5. RENDER LOGIC
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-emerald-100">
+        <div className="h-[100dvh] w-full flex flex-col bg-slate-50 overflow-hidden fixed inset-0">
             {showSplash && <SplashScreen isExiting={isExiting} />}
 
             {/* HEADER (Only show if in game) */}

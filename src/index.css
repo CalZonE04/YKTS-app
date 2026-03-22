@@ -33,3 +33,18 @@
   transition: opacity 0.5s ease-out;
   pointer-events: none;
 }
+/* index.css */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Prevent the whole browser from bouncing */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll-container {
+  -webkit-overflow-scrolling: touch; /* Smooth iOS scroll */
+}

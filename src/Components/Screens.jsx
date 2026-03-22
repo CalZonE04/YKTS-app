@@ -16,7 +16,7 @@ import * as htmlToImage from 'html-to-image';
 export function LobbyScreen({ onNavigate, onJoinSuccess, showToast }) {
     const inputRef = useRef(null);
     return (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50 min-h-screen animate-in fade-in duration-500">
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4">
             <div className="bg-emerald-600 p-8 rounded-[2.5rem] shadow-2xl text-white mb-8 rotate-3">
                 <Trophy size={64} />
             </div>
@@ -110,7 +110,7 @@ export function SetupScreen({ db, onNavigate, onGameCreated, showToast }) {
     };
 
     return (
-        <div className="flex-1 flex flex-col bg-slate-50 p-6 overflow-y-auto pb-32 min-h-screen">
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4">
             <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tighter uppercase leading-none">Round Setup</h2>
             
             {/* 1. GAME SETTINGS */}
@@ -239,7 +239,7 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
     const matchStatus = isMatchPlay ? calculateMatchStatus(state.players) : null;
 
     return (
-        <div className="p-4 flex flex-col animate-in fade-in duration-300">
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4">
             
             {/* 1. MATCH PLAY STATUS (Only visible in 2-player Match Play) */}
             {isMatchPlay && state.players.length === 2 && (
