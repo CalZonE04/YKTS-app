@@ -111,24 +111,18 @@ export function SplashScreen({ isExiting }) {
     );
 }
 /**
- * 3. MENU OVERLAY (Updated with Share & Leave)
+ * 3. MENU OVERLAY (Fully Secured against Spectators)
  */
-export function MenuOverlay({ isOpen, onClose, onEndRound, onLeaveGame, gameId, mode, showToast }) {
+export function MenuOverlay({ isOpen, onClose, onEndRound, onLeaveGame, gameId, mode, showToast, isSpectator }) {
     if (!isOpen) return null;
 
-    // Trigger the native mobile share sheet with a Magic Link!
     const handleShare = async () => {
         const joinLink = `${window.location.origin}?join=${gameId}`;
-        
-        // NEW: App name added to the top of the message
         const shareText = `⛳️ YKTS (You Know The Score)\n\n🏌️‍♂️ Get involved in the game!\nTap the link to view the live scorecard and join the action:\n${joinLink}`;
 
         if (navigator.share && navigator.canShare) {
             try {
-                await navigator.share({ 
-                    title: 'YKTS Live Scorecard', 
-                    text: shareText 
-                });
+                await navigator.share({ title: 'YKTS Live Scorecard', text: shareText });
             } catch (e) {
                 console.log("Share dismissed");
             }
@@ -149,19 +143,24 @@ export function MenuOverlay({ isOpen, onClose, onEndRound, onLeaveGame, gameId, 
                 
                 <div className="space-y-3">
                     <button onClick={onClose} className="w-full p-5 bg-slate-100 rounded-2xl font-black text-slate-900 flex justify-between items-center active:scale-95 transition-all">
-                        Resume Round
+                        {isSpectator ? 'Close Menu' : 'Resume Round'}
                         <ChevronRight size={20} className="text-slate-400" />
                     </button>
                     
-                    <button onClick={handleShare} className="w-full p-5 bg-blue-50 text-blue-600 rounded-2xl font-black flex justify-between items-center active:scale-95 transition-all">
-                        Share Lobby
-                        <Share size={18} />
-                    </button>
-                    
-                    <button onClick={onEndRound} className="w-full p-5 bg-emerald-600 rounded-2xl font-black text-white flex justify-between items-center shadow-lg active:scale-95 transition-all">
-                        End & Save Round
-                        <CheckCircle2 size={20} />
-                    </button>
+                    {/* ONLY PLAYERS CAN SHARE THE CODE OR END THE ROUND */}
+                    {!isSpectator && (
+                        <>
+                            <button onClick={handleShare} className="w-full p-5 bg-blue-50 text-blue-600 rounded-2xl font-black flex justify-between items-center active:scale-95 transition-all">
+                                Share Lobby Code
+                                <Share size={18} />
+                            </button>
+                            
+                            <button onClick={onEndRound} className="w-full p-5 bg-emerald-600 rounded-2xl font-black text-white flex justify-between items-center shadow-lg active:scale-95 transition-all">
+                                End & Save Round
+                                <CheckCircle2 size={20} />
+                            </button>
+                        </>
+                    )}
                     
                     <button onClick={onLeaveGame} className="w-full p-5 bg-red-50 text-red-600 rounded-2xl font-black flex justify-between items-center active:scale-95 transition-all mt-4">
                         Leave Game
@@ -169,8 +168,9 @@ export function MenuOverlay({ isOpen, onClose, onEndRound, onLeaveGame, gameId, 
                     </button>
                 </div>
                 
+                {/* HIDE THE CODE IN THE FOOTER FOR SPECTATORS TOO */}
                 <p className="mt-8 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                    Mode: {mode || 'Stroke Play'} • Code: {gameId}
+                    Mode: {mode || 'Stroke Play'} {!isSpectator && `• Code: ${gameId}`}
                 </p>
             </div>
         </div>

@@ -223,6 +223,7 @@ export default function App() {
                 gameId={gameCode}
                 mode={gameState?.mode}
                 showToast={handleShowToast}
+                isSpectator={isSpectator}
             />
 
             {/* HEADER - Now receives isSpectator */}
