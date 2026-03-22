@@ -104,6 +104,19 @@ export default function App() {
         setIsSpectator(false); // Reset spectator status when leaving
         setView('lobby');
     };
+    // NEW: Mark the game as complete in Firebase before showing the summary
+    const handleEndRound = async () => {
+        setIsMenuOpen(false);
+        if (gameCode) {
+            try {
+                // Tell Firebase this game is officially over
+                await updateDoc(doc(db, 'games', gameCode), { isCompleted: true });
+            } catch (err) {
+                console.error("Failed to update game status", err);
+            }
+        }
+        setView('summary');
+    };
 
     const handleUpdatePar = async (delta) => {
         if (!gameState) return;
@@ -174,10 +187,8 @@ export default function App() {
             <MenuOverlay 
                 isOpen={isMenuOpen} 
                 onClose={() => setIsMenuOpen(false)} 
-                onEndRound={() => { 
-                    setIsMenuOpen(false); 
-                    setView('summary'); 
-                }}
+                onEndRound={handleEndRound} // <--- Now it hits the database!
+                // ...
                 /* NEW PROPS FOR THE MENU */
                 onLeaveGame={() => {
                     setIsMenuOpen(false);

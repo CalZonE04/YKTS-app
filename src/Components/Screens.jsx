@@ -1,12 +1,47 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Trophy, Flag, Plus, X, ChevronLeft, ChevronRight, Minus, Target, BarChart2, Share, CheckCircle2, Home, Settings, Users, Layers, MapPin, Trash2, Search, Filter, EyeOff, Globe, LocateFixed, Activity } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { Trophy, Flag, Plus, X, ChevronLeft, ChevronRight, Minus, Target, BarChart2, Share, CheckCircle2, Home, Settings, Users, Layers, MapPin, Trash2, Search, Filter, EyeOff, Globe, LocateFixed, Activity, Download } from 'lucide-react';
 import { 
     getPlayerStats, formatRel, generateGameCode, 
     getHolePoints, calculateMatchStatus 
 } from '../utils';
 import { doc, setDoc, collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import * as htmlToImage from 'html-to-image';
+// IMAGE EXPORT HELPER
+const exportImage = async (elementId, filename) => {
+    const element = document.getElementById(elementId);
+    if (!element) return;
 
+    try {
+        // scale: 2 makes the image high-definition (Retina quality)
+        const canvas = await html2canvas(element, { backgroundColor: '#f8fafc', scale: 2 });
+        
+        canvas.toBlob(async (blob) => {
+            const file = new File([blob], filename, { type: 'image/png' });
+            
+            // Try to open the native mobile share sheet (WhatsApp, Messages, Save to Photos)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        title: 'YKTS Leaderboard',
+                        files: [file]
+                    });
+                    return; // Success!
+                } catch (err) {
+                    console.log("User cancelled share");
+                }
+            }
+            
+            // Fallback for laptops/desktops: Download the file directly
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        });
+    } catch (error) {
+        console.error("Screenshot failed:", error);
+    }
+};
 // 1. YOUR LOCAL COURSE DATABASE
 // Add your usual spots here!
 const COURSE_DATABASE = [
@@ -601,89 +636,124 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
     );
 }
 /**
- * 4. LEADERBOARD SCREEN
+ * 4. LEADERBOARD SCREEN (Exportable)
  */
 export function LeaderboardScreen({ state }) {
     if (!state) return null;
+
     const isStableford = state.mode === 'Stableford';
-    const rankedPlayers = [...state.players].sort((a, b) => {
+    const sortedPlayers = [...state.players].sort((a, b) => {
         const statsA = getPlayerStats(a, state.pars, state.mode);
         const statsB = getPlayerStats(b, state.pars, state.mode);
         return isStableford ? statsB.points - statsA.points : statsA.relative - statsB.relative;
     });
 
     return (
-        <div className="p-6 flex flex-col h-full animate-in slide-in-from-bottom duration-500 overflow-y-auto no-scrollbar pb-32">
-            <div className="mb-8">
-                <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">The Board</h2>
-                <div className="flex items-center gap-2 mt-2">
-                    <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">{state.mode}</span>
-                    <span className="text-slate-300 text-[9px] font-black uppercase tracking-widest">{state.holes} Holes</span>
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
+            
+            {/* HEADER WITH EXPORT BUTTON */}
+            <div className="flex justify-between items-center mb-6 px-2">
+                <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Leaderboard</h2>
+                <button 
+                    onClick={() => exportImage('leaderboard-capture', `YKTS_Leaderboard_${state.courseName}.png`)}
+                    className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm"
+                >
+                    <Download size={14} /> Export
+                </button>
+            </div>
+
+            {/* THE CAPTURE ZONE: Everything inside this div gets turned into a picture */}
+            <div id="leaderboard-capture" className="bg-slate-50 p-2 rounded-3xl">
+                <div className="text-center mb-6 mt-2">
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{state.courseName}</p>
+                    <p className="text-sm font-black text-emerald-700 uppercase tracking-tight">{state.mode}</p>
+                </div>
+
+                <div className="space-y-3">
+                    {sortedPlayers.map((p, i) => {
+                        const stats = getPlayerStats(p, state.pars, state.mode);
+                        return (
+                            <div key={p.id} className="bg-white p-4 rounded-[2rem] border border-slate-100 flex items-center gap-4 shadow-sm relative overflow-hidden">
+                                {i === 0 && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-yellow-400" />}
+                                
+                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-lg shadow-inner ${i === 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-50 text-slate-400'}`}>
+                                    {i + 1}
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-black text-slate-900 uppercase truncate tracking-tight">{p.name}</h3>
+                                    {p.members && p.members.length > 0 && (
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide truncate mt-0.5">
+                                            {p.members.join(' • ')}
+                                        </p>
+                                    )}
+                                </div>
+                                
+                                <div className="text-right">
+                                    <div className={`text-xl font-black tabular-nums tracking-tighter ${stats.relative < 0 ? 'text-red-500' : stats.relative === 0 ? 'text-emerald-500' : 'text-slate-900'}`}>
+                                        {isStableford ? `${stats.points} pts` : formatRel(stats.relative)}
+                                    </div>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                        Thru {stats.thru}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
-            <div className="space-y-3">
-                {rankedPlayers.map((p, idx) => {
-                    const stats = getPlayerStats(p, state.pars, state.mode);
-                    return (
-                        <div key={p.id} className={`p-5 rounded-[2.5rem] border flex items-center justify-between transition-all ${idx === 0 ? 'bg-white border-emerald-500 shadow-lg scale-[1.02]' : 'bg-white border-slate-100 shadow-sm'}`}>
-                            <div className="flex items-center gap-4">
-                                <span className={`text-xl font-black italic ${idx === 0 ? 'text-emerald-600' : 'text-slate-200'}`}>{idx + 1}</span>
-                                <div>
-                                    <h4 className="font-black text-slate-800 uppercase tracking-tight leading-none">{p.name}</h4>
-                                    {p.members?.length > 0 && <p className="text-[7px] font-black text-slate-400 uppercase tracking-tighter mt-1">{p.members.join(', ')}</p>}
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <div className={`text-2xl font-black leading-none ${stats.relative < 0 ? 'text-red-500' : stats.relative === 0 ? 'text-emerald-600' : 'text-slate-900'}`}>{isStableford ? `${stats.points}` : formatRel(stats.relative)}</div>
-                                <p className="text-[8px] font-black text-slate-300 uppercase mt-1">{isStableford ? 'Points' : 'To Par'}</p>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
         </div>
     );
 }
-
 /**
- * 5. STATS SCREEN
+ * 5. STATS SCREEN (Exportable)
  */
+
 export function StatsScreen({ state }) {
     if (!state) return null;
-    const isStableford = state.mode === 'Stableford';
-    return (
-        <div className="p-6 h-full animate-in slide-in-from-right duration-300 pb-32 overflow-y-auto no-scrollbar">
-            <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tighter uppercase">Stats</h2>
-            <div className="space-y-6">
-                {state.players.map((p) => {
-                    const stats = getPlayerStats(p, state.pars);
-                    const playedHoles = p.scores.map((s, i) => ({ s, p: state.pars[i] })).filter(h => h.s > 0);
-                    const sparkPoints = playedHoles.map((h, i) => {
-                        const val = isStableford ? getHolePoints(h.s, h.p) * 10 : (h.s - h.p) * -10;
-                        return `${i * 40},${25 - val}`;
-                    }).join(' ');
 
+    return (
+        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
+            
+            {/* HEADER WITH EXPORT BUTTON */}
+            <div className="flex justify-between items-center mb-6 px-2">
+                <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Performance</h2>
+                <button 
+                    onClick={() => exportImage('stats-capture', `YKTS_Stats_${state.courseName}.png`)}
+                    className="flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm"
+                >
+                    <Download size={14} /> Export
+                </button>
+            </div>
+
+            {/* THE CAPTURE ZONE */}
+            <div id="stats-capture" className="bg-slate-50 p-2 rounded-3xl space-y-6">
+                
+                <div className="text-center mt-2 mb-4">
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{state.courseName}</p>
+                    <p className="text-sm font-black text-emerald-700 uppercase tracking-tight">Round Analytics</p>
+                </div>
+
+                {state.players.map(p => {
+                    const stats = getPlayerStats(p, state.pars, state.mode);
                     return (
-                        <div key={p.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="font-black text-slate-900 text-lg uppercase leading-none">{p.name}</h3>
-                                    {p.members?.length > 0 && <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">{p.members.join(' • ')}</p>}
-                                </div>
-                                <span className="text-2xl font-black text-slate-900">{isStableford ? `${stats.points} PTS` : formatRel(stats.relative)}</span>
+                        <div key={p.id} className="bg-white p-5 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                            <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg mb-4">{p.name}</h3>
+                            
+                            {/* ... (Keep your existing Stats grid / circles / logic here) ... */}
+                            <div className="grid grid-cols-4 gap-2">
+                                <StatCircle label="Eagles" value={stats.eagles} color="bg-purple-100 text-purple-700" />
+                                <StatCircle label="Birdies" value={stats.birdies} color="bg-red-100 text-red-600" />
+                                <StatCircle label="Pars" value={stats.parsCount} color="bg-emerald-100 text-emerald-600" />
+                                <StatCircle label="Bogeys+" value={stats.bogeys} color="bg-slate-100 text-slate-600" />
                             </div>
-                            <div className="h-16 w-full bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden px-4">
-                                {playedHoles.length > 1 ? (
-                                    <svg viewBox={`0 0 ${(playedHoles.length - 1) * 40} 50`} className="w-full h-12 overflow-visible">
-                                        <polyline fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" points={sparkPoints} />
-                                    </svg>
-                                ) : <span className="text-[10px] font-black text-slate-300 uppercase">Need 2+ holes</span>}
-                            </div>
+
                         </div>
                     );
                 })}
             </div>
+
         </div>
     );
 }
@@ -1058,8 +1128,13 @@ export function SpectateScreen({ db, onNavigate, onSpectate }) {
     }, [db]);
 
     const filteredGames = allLiveGames.filter(game => {
-        if (game.isPrivate) return false;
+        // 0. Hide Private AND Completed Games
+        if (game.isPrivate || game.isCompleted) return false;
+
+        // 1. Search by Course Name
         const matchesSearch = game.courseName?.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        // 2. Filter by Player/Team Count
         const playerCount = game.players?.length || 0;
         let matchesPlayers = true;
         
