@@ -150,12 +150,13 @@ export default function App() {
 
             {/* MAIN CONTENT AREA */}
             <main className="flex-1 flex flex-col relative overflow-hidden">
-                {view === 'lobby' && (
-                    <LobbyScreen 
-                        onJoin={handleJoinGame} 
-                        onCreate={() => setView('setup')} 
-                    />
-                )}
+            {view === 'lobby' && (
+    <LobbyScreen 
+        onNavigate={setView} // Match the name in LobbyScreen
+        onJoinSuccess={handleJoinGame} // Match the name in LobbyScreen
+        showToast={handleShowToast} 
+    />
+)}
 
                 {view === 'setup' && (
                     <SetupScreen 
