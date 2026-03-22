@@ -636,7 +636,7 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
     );
 }
 /**
- * 4. LEADERBOARD SCREEN (Exportable)
+ * 4. LEADERBOARD SCREEN (Premium Dark Mode & Exportable)
  */
 export function LeaderboardScreen({ state }) {
     if (!state) return null;
@@ -648,10 +648,17 @@ export function LeaderboardScreen({ state }) {
         return isStableford ? statsB.points - statsA.points : statsA.relative - statsB.relative;
     });
 
+    // Helper to get podium colors
+    const getPodiumStyle = (index) => {
+        if (index === 0) return { bg: 'bg-gradient-to-r from-yellow-300 to-yellow-500', text: 'text-yellow-900', border: 'border-yellow-400', badge: 'bg-yellow-100 text-yellow-800' };
+        if (index === 1) return { bg: 'bg-gradient-to-r from-slate-200 to-slate-400', text: 'text-slate-900', border: 'border-slate-300', badge: 'bg-slate-100 text-slate-800' };
+        if (index === 2) return { bg: 'bg-gradient-to-r from-amber-600 to-amber-700', text: 'text-amber-50', border: 'border-amber-600', badge: 'bg-amber-900/50 text-amber-200' };
+        return { bg: 'bg-slate-800/50', text: 'text-white', border: 'border-slate-700/50', badge: 'bg-slate-900 text-slate-400' };
+    };
+
     return (
         <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
             
-            {/* HEADER WITH EXPORT BUTTON */}
             <div className="flex justify-between items-center mb-6 px-2">
                 <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Leaderboard</h2>
                 <button 
@@ -662,44 +669,62 @@ export function LeaderboardScreen({ state }) {
                 </button>
             </div>
 
-            {/* THE CAPTURE ZONE: Everything inside this div gets turned into a picture */}
-            <div id="leaderboard-capture" className="bg-slate-50 p-2 rounded-3xl">
-                <div className="text-center mb-6 mt-2">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{state.courseName}</p>
-                    <p className="text-sm font-black text-emerald-700 uppercase tracking-tight">{state.mode}</p>
+            {/* THE PREMIUM CAPTURE ZONE */}
+            <div id="leaderboard-capture" className="bg-gradient-to-b from-slate-900 to-slate-950 p-4 rounded-[2.5rem] shadow-2xl relative overflow-hidden border border-slate-800">
+                
+                {/* Subtle background glow effect */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-emerald-500/20 blur-[50px] rounded-full pointer-events-none" />
+
+                <div className="text-center mb-8 mt-4 relative z-10">
+                    <p className="text-[10px] font-black uppercase text-emerald-400 tracking-[0.2em]">{state.courseName}</p>
+                    <p className="text-xl font-black text-white uppercase tracking-tighter italic mt-1">{state.mode}</p>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 relative z-10">
                     {sortedPlayers.map((p, i) => {
                         const stats = getPlayerStats(p, state.pars, state.mode);
+                        const podium = getPodiumStyle(i);
+                        const isPodium = i < 3;
+
                         return (
-                            <div key={p.id} className="bg-white p-4 rounded-[2rem] border border-slate-100 flex items-center gap-4 shadow-sm relative overflow-hidden">
-                                {i === 0 && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-yellow-400" />}
+                            <div key={p.id} className={`p-4 rounded-[1.5rem] border flex items-center gap-4 backdrop-blur-sm ${isPodium ? podium.bg : podium.bg} ${podium.border} shadow-lg transition-transform`}>
                                 
-                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-lg shadow-inner ${i === 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-50 text-slate-400'}`}>
+                                {/* Position Badge */}
+                                <div className={`w-10 h-10 rounded-[1rem] flex items-center justify-center font-black text-lg shadow-inner ${podium.badge}`}>
                                     {i + 1}
                                 </div>
                                 
+                                {/* Player Info */}
                                 <div className="flex-1 min-w-0">
-                                    <h3 className="font-black text-slate-900 uppercase truncate tracking-tight">{p.name}</h3>
+                                    <h3 className={`font-black uppercase truncate tracking-tight text-lg leading-none ${podium.text}`}>{p.name}</h3>
                                     {p.members && p.members.length > 0 && (
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide truncate mt-0.5">
+                                        <p className={`text-[9px] font-bold uppercase tracking-widest truncate mt-1 opacity-80 ${podium.text}`}>
                                             {p.members.join(' • ')}
                                         </p>
                                     )}
                                 </div>
                                 
+                                {/* Score Display */}
                                 <div className="text-right">
-                                    <div className={`text-xl font-black tabular-nums tracking-tighter ${stats.relative < 0 ? 'text-red-500' : stats.relative === 0 ? 'text-emerald-500' : 'text-slate-900'}`}>
+                                    <div className={`text-2xl font-black tabular-nums tracking-tighter drop-shadow-sm ${
+                                        isStableford ? podium.text : 
+                                        (stats.relative < 0 && !isPodium) ? 'text-red-400' : 
+                                        (stats.relative === 0 && !isPodium) ? 'text-emerald-400' : podium.text
+                                    }`}>
                                         {isStableford ? `${stats.points} pts` : formatRel(stats.relative)}
                                     </div>
-                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                    <div className={`text-[9px] font-black uppercase tracking-widest mt-0.5 opacity-70 ${podium.text}`}>
                                         Thru {stats.thru}
                                     </div>
                                 </div>
                             </div>
                         );
                     })}
+                </div>
+                
+                {/* Branding footer inside the image */}
+                <div className="text-center mt-8 mb-2 relative z-10 opacity-50">
+                    <p className="text-[8px] font-black uppercase text-white tracking-[0.3em]">⛳️ YKTS Live Scoring</p>
                 </div>
             </div>
 
@@ -709,14 +734,80 @@ export function LeaderboardScreen({ state }) {
 /**
  * 5. STATS SCREEN (Exportable)
  */
+const StatCircle = ({ label, value, color }) => (
+    <div className={`flex flex-col items-center justify-center p-3 rounded-2xl ${color} shadow-sm`}>
+        <span className="text-2xl font-black leading-none mb-1">{value}</span>
+        <span className="text-[9px] font-black uppercase tracking-widest opacity-80">{label}</span>
+    </div>
+);
+// NEW HELPER: Sleek SVG Line Graph for cumulative performance
+const PerformanceGraph = ({ player, pars }) => {
+    // 1. Calculate cumulative relative score (+/- par) over the round
+    let currentRel = 0;
+    const dataPoints = player.scores.map((score, i) => {
+        if (!score || score === 0) return null; // Skip unplayed holes
+        currentRel += (score - pars[i]);
+        return currentRel;
+    }).filter(val => val !== null);
 
+    if (dataPoints.length < 2) return <div className="text-center text-[10px] font-black uppercase tracking-widest text-slate-300 mt-4">Play more holes to see graph</div>;
+
+    // 2. Setup the SVG canvas math
+    const width = 300;
+    const height = 80;
+    const max = Math.max(...dataPoints, 2); // Set a minimum ceiling
+    const min = Math.min(...dataPoints, -2); // Set a minimum floor
+    const range = max - min;
+    const zeroY = height - ((0 - min) / range) * height;
+
+    // 3. Map the data points to X/Y coordinates on the canvas
+    const points = dataPoints.map((val, i) => {
+        const x = (i / (dataPoints.length - 1)) * width;
+        const y = height - ((val - min) / range) * height;
+        return `${x},${y}`;
+    }).join(' ');
+
+    return (
+        <div className="mt-6 pt-4 border-t border-slate-100">
+            <div className="flex justify-between items-center mb-2 px-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Trend</span>
+                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase tracking-widest">{currentRel > 0 ? `+${currentRel}` : currentRel === 0 ? 'E' : currentRel}</span>
+            </div>
+            <div className="relative w-full overflow-visible">
+                <svg viewBox={`0 -10 ${width} ${height + 20}`} className="w-full h-20 overflow-visible drop-shadow-sm">
+                    {/* The Par "Zero" Line */}
+                    <line x1="0" y1={zeroY} x2={width} y2={zeroY} stroke="#e2e8f0" strokeWidth="2" strokeDasharray="4 4" />
+                    
+                    {/* The Data Line */}
+                    <polyline points={points} fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                    
+                    {/* The Data Dots */}
+                    {dataPoints.map((val, i) => {
+                        const x = (i / (dataPoints.length - 1)) * width;
+                        const y = height - ((val - min) / range) * height;
+                        const isUnderPar = val < 0;
+                        return (
+                            <circle 
+                                key={i} cx={x} cy={y} r="4" 
+                                fill={isUnderPar ? "#ef4444" : "#10b981"} // Red for under par (good in golf!), Green for over
+                                stroke="#ffffff" strokeWidth="2" 
+                            />
+                        );
+                    })}
+                </svg>
+            </div>
+        </div>
+    );
+};
+/**
+ * 5. STATS SCREEN (With Performance Line Graph)
+ */
 export function StatsScreen({ state }) {
     if (!state) return null;
 
     return (
         <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
             
-            {/* HEADER WITH EXPORT BUTTON */}
             <div className="flex justify-between items-center mb-6 px-2">
                 <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Performance</h2>
                 <button 
@@ -727,8 +818,7 @@ export function StatsScreen({ state }) {
                 </button>
             </div>
 
-            {/* THE CAPTURE ZONE */}
-            <div id="stats-capture" className="bg-slate-50 p-2 rounded-3xl space-y-6">
+            <div id="stats-capture" className="bg-slate-50 p-3 rounded-[2rem] space-y-4">
                 
                 <div className="text-center mt-2 mb-4">
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{state.courseName}</p>
@@ -738,10 +828,9 @@ export function StatsScreen({ state }) {
                 {state.players.map(p => {
                     const stats = getPlayerStats(p, state.pars, state.mode);
                     return (
-                        <div key={p.id} className="bg-white p-5 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                        <div key={p.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
                             <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg mb-4">{p.name}</h3>
                             
-                            {/* ... (Keep your existing Stats grid / circles / logic here) ... */}
                             <div className="grid grid-cols-4 gap-2">
                                 <StatCircle label="Eagles" value={stats.eagles} color="bg-purple-100 text-purple-700" />
                                 <StatCircle label="Birdies" value={stats.birdies} color="bg-red-100 text-red-600" />
@@ -749,15 +838,16 @@ export function StatsScreen({ state }) {
                                 <StatCircle label="Bogeys+" value={stats.bogeys} color="bg-slate-100 text-slate-600" />
                             </div>
 
+                            {/* NEW: The SVG Line Graph! */}
+                            <PerformanceGraph player={p} pars={state.pars} />
+
                         </div>
                     );
                 })}
             </div>
-
         </div>
     );
 }
-
 /**
  * 6. UPDATED SCORECARD SCREEN
  * Now displays Team Rosters (members) under Team Names.

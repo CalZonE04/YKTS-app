@@ -44,26 +44,53 @@ export const getHolePoints = (score, par, mode = 'Stableford') => {
  * 5. PLAYER STATS ENGINE (Smart Scoring)
  * Only calculates relative score based on holes that actually have a score > 0.
  */
-export const getPlayerStats = (player, pars, mode = 'Stroke Play') => {
-  let totalStrokes = 0;
-  let parOfPlayedHoles = 0;
+export function getPlayerStats(player, pars, mode) {
+  let relative = 0;
   let points = 0;
+  let thru = 0;
+  
+  // NEW: Tally counters for the Stats Screen
+  let eagles = 0;
+  let birdies = 0;
+  let parsCount = 0;
+  let bogeys = 0;
 
   player.scores.forEach((score, i) => {
-    if (score > 0) {
-      totalStrokes += score;
-      parOfPlayedHoles += pars[i];
-      points += getHolePoints(score, pars[i], mode);
-    }
+      if (score > 0) { // Only count holes that have actually been played
+          thru++;
+          const par = pars[i];
+          const diff = score - par;
+          
+          // Traditional Stroke Play tracking
+          relative += diff;
+
+          // Stableford Points Tracking (Par = 2pts, Birdie = 3pts, etc.)
+          points += Math.max(0, 2 - diff);
+
+          // NEW: Tally the individual hole performances!
+          if (diff <= -2) {
+              eagles++;
+          } else if (diff === -1) {
+              birdies++;
+          } else if (diff === 0) {
+              parsCount++;
+          } else if (diff >= 1) {
+              bogeys++;
+          }
+      }
   });
 
+  // Return the new tallies along with the standard stats
   return { 
-    strokes: totalStrokes, 
-    relative: totalStrokes - parOfPlayedHoles, 
-    points: points 
+      relative, 
+      points, 
+      thru, 
+      eagles, 
+      birdies, 
+      parsCount, 
+      bogeys 
   };
-};
-
+}
 /**
  * 6. MATCH PLAY ENGINE
  * Compares two players hole-by-hole to determine who is "Up".
