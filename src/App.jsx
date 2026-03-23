@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
 import { doc, onSnapshot, updateDoc, arrayUnion, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { getPlayerStats, generateGameCode } from './utils';
+import { Menu, X, Flag, Activity } from 'lucide-react';
 
 // UI Components
 import { Header, Navigation, SplashScreen, MenuOverlay } from './Components/UI';
@@ -30,6 +31,7 @@ export default function App() {
     
     // Spectator State
     const [isSpectator, setIsSpectator] = useState(false);
+    const [pendingJoinCode, setPendingJoinCode] = useState(null);
 
     // 2. SAVE TO LOCALSTORAGE
     useEffect(() => {
@@ -96,10 +98,10 @@ export default function App() {
         const joinCode = params.get('join');
 
         if (joinCode) {
-            // 1. Join the game automatically!
-            handleJoinGame(joinCode);
+            // 1. Intercept the code and ask them what they want to do first
+            setPendingJoinCode(joinCode.toUpperCase());
 
-            // 2. Clean up the URL bar so if they refresh, it doesn't get stuck in a loop
+            // 2. Clean up the URL bar
             window.history.replaceState({}, document.title, window.location.pathname);
         }
     }, []);
@@ -142,6 +144,27 @@ export default function App() {
             }
         }
         setView('summary');
+    };
+    // NEW: Fire a chat message into the live feed
+    const handleSendMessage = async (text, authorName) => {
+        if (!gameCode || !text.trim()) return;
+        try {
+            const newMessage = {
+                id: Date.now().toString(),
+                type: 'chat',
+                text: text.trim(),
+                author: authorName || (isSpectator ? 'Spectator' : 'Player'),
+                timestamp: new Date().toISOString()
+            };
+            
+            // arrayUnion safely drops the new message at the end of the feed array
+            await updateDoc(doc(db, 'games', gameCode), {
+                feed: arrayUnion(newMessage)
+            });
+        } catch (err) {
+            console.error("Failed to send message", err);
+            handleShowToast("Failed to send message", true);
+        }
     };
 
     const handleUpdatePar = async (delta) => {
@@ -209,6 +232,45 @@ export default function App() {
     return (
         <div className="h-[100dvh] w-full flex flex-col bg-slate-50 overflow-hidden fixed inset-0">
             {showSplash && <SplashScreen isExiting={isExiting} />}
+            {/* NEW: GAME INVITE POPUP */}
+            {pendingJoinCode && (
+                    <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setPendingJoinCode(null)} />
+                        
+                        <div className="relative bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+                            <button onClick={() => setPendingJoinCode(null)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full active:scale-90 transition-all">
+                                <X size={20} />
+                            </button>
+                            
+                            <h2 className="text-3xl font-black text-slate-900 mb-1 uppercase tracking-tighter italic">Game Invite</h2>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Lobby Code: <span className="text-emerald-600">{pendingJoinCode}</span></p>
+
+                            <div className="space-y-3">
+                                <button 
+                                    onClick={() => {
+                                        handleJoinGame(pendingJoinCode);
+                                        setIsSpectator(false);
+                                        setPendingJoinCode(null);
+                                    }}
+                                    className="w-full bg-emerald-600 text-white p-5 rounded-[1.5rem] font-black text-lg flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all"
+                                >
+                                    <Flag size={20} fill="currentColor" /> Join as Player
+                                </button>
+
+                                <button 
+                                    onClick={() => {
+                                        handleJoinGame(pendingJoinCode);
+                                        setIsSpectator(true);
+                                        setPendingJoinCode(null);
+                                    }}
+                                    className="w-full bg-blue-50 text-blue-600 border border-blue-100 p-5 rounded-[1.5rem] font-black text-lg flex items-center justify-center gap-3 active:scale-95 transition-all"
+                                >
+                                    <Activity size={20} /> Watch Live
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             <MenuOverlay 
                 isOpen={isMenuOpen} 
@@ -236,7 +298,7 @@ export default function App() {
                 />
             )}
 
-            <main className="flex-1 flex flex-col relative overflow-hidden">
+            <main className="flex-1 flex flex-col relative overflow-hidden min-h-0">
                 
                 {/* LOBBY - Now passes db and handles spectating */}
                 {view === 'lobby' && (
@@ -285,7 +347,7 @@ export default function App() {
                             
                             {activeTab === 'leaderboard' && <LeaderboardScreen state={gameState} />}
                             {activeTab === 'stats' && <StatsScreen state={gameState} />}
-                            {activeTab === 'feed' && <FeedScreen state={gameState} />}
+                            {activeTab === 'feed' && <FeedScreen state={gameState} onSendMessage={handleSendMessage} />}
                             {activeTab === 'scorecard' && (
                                 <ScorecardScreen 
                                     state={gameState} 

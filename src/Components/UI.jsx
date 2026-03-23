@@ -66,7 +66,7 @@ export function Navigation({ current, onNavigate }) {
         { id: 'scoring', icon: Target, label: 'Score' },
         { id: 'leaderboard', icon: Trophy, label: 'Board' },
         { id: 'stats', icon: BarChart2, label: 'Stats' },
-        { id: 'feed', icon: MessageSquare, label: 'Feed' },
+        { id: 'feed', icon: MessageSquare, label: 'Gallery' },
         { id: 'scorecard', icon: FileText, label: 'Card' },
     ];
 
@@ -120,15 +120,36 @@ export function MenuOverlay({ isOpen, onClose, onEndRound, onLeaveGame, gameId, 
         const joinLink = `${window.location.origin}?join=${gameId}`;
         const shareText = `⛳️ YKTS (You Know The Score)\n\n🏌️‍♂️ Get involved in the game!\nTap the link to view the live scorecard and join the action:\n${joinLink}`;
 
+        // 1. Try the Native Share Sheet FIRST (For Mobile: WhatsApp, iMessage, etc.)
         if (navigator.share && navigator.canShare) {
             try {
-                await navigator.share({ title: 'YKTS Live Scorecard', text: shareText });
+                await navigator.share({ 
+                    title: 'YKTS Live Scorecard', 
+                    text: shareText 
+                });
+                return; // Stop here if the share sheet successfully opened!
             } catch (e) {
-                console.log("Share dismissed");
+                console.log("Share sheet dismissed or unsupported.");
+                // If they manually closed the share sheet, stop here.
+                if (e.name === 'AbortError') return; 
             }
-        } else {
-            navigator.clipboard.writeText(shareText);
+        }
+
+        // 2. FALLBACK: Copy to Clipboard (For Laptops / Desktop Browsers)
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(shareText);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = shareText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textArea);
+            }
             if (showToast) showToast("Invite link copied to clipboard! 📋");
+        } catch (err) {
+            console.error("Clipboard copy failed:", err);
         }
     };
 

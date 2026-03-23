@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import html2canvas from 'html2canvas';
-import { Trophy, Flag, Plus, X, ChevronLeft, ChevronRight, Minus, Target, BarChart2, Share, CheckCircle2, Home, Settings, Users, Layers, MapPin, Trash2, Search, Filter, EyeOff, Globe, LocateFixed, Activity, Download } from 'lucide-react';
+import { Trophy, Flag, Plus, X, ChevronLeft, ChevronRight, Minus, Target, BarChart2, Share, CheckCircle2, Home, Settings, Users, Layers, MapPin, Trash2, Search, Filter, EyeOff, Globe, LocateFixed, Activity, Download, Send } from 'lucide-react';
 import { 
     getPlayerStats, formatRel, generateGameCode, 
     getHolePoints, calculateMatchStatus 
@@ -503,7 +503,7 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
     const matchStatus = isMatchPlay ? calculateMatchStatus(state.players) : null;
 
     return (
-        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
+        <div className="h-full w-full overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
             
             {/* 1. MATCH PLAY STATUS CARD */}
             {isMatchPlay && state.players.length === 2 && (
@@ -546,13 +546,16 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
                 </button>
             </div>
 
-            {/* 3. PLAYER/TEAM SCORING CARDS */}
-            <div className="space-y-3">
+         {/* 3. PLAYER/TEAM SCORING CARDS */}
+         <div className="space-y-3">
                 {state.players.map((p, idx) => {
                     const stats = getPlayerStats(p, state.pars, state.mode);
                     const score = p.scores[currentHole] || 0;
                     const par = state.pars[currentHole];
                     const holePts = getHolePoints(score, par, state.mode);
+                    
+                    // NEW: Calculate their total absolute strokes across the whole round
+                    const totalStrokes = p.scores.reduce((sum, s) => sum + (s || 0), 0);
 
                     return (
                         <div key={p.id} className="bg-white p-5 rounded-[2.5rem] border border-slate-100 flex items-center justify-between shadow-sm active:border-emerald-200 transition-colors">
@@ -569,7 +572,9 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
                                     </p>
                                 )}
                                 
-                                <div className="mt-2 flex items-center gap-2">
+                                {/* ADDED flex-wrap here to safely stack multiple badges */}
+                                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                    
                                     {/* Score vs Par Badge */}
                                     <div className={`text-[10px] font-black px-2 py-0.5 rounded uppercase border ${
                                         stats.relative < 0 ? 'bg-red-50 text-red-500 border-red-100' : 
@@ -577,6 +582,11 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
                                         'bg-slate-50 text-slate-400 border-slate-100'
                                     }`}>
                                         {formatRel(stats.relative)}
+                                    </div>
+
+                                    {/* NEW: Total Strokes Badge */}
+                                    <div className="text-[10px] font-black px-2 py-0.5 rounded uppercase border bg-slate-50 text-slate-400 border-slate-100 shadow-sm">
+                                        {totalStrokes} {totalStrokes === 1 ? 'Shot' : 'Shots'}
                                     </div>
 
                                     {/* Stableford Context Badge */}
@@ -636,7 +646,7 @@ export function ScoringScreen({ state, currentHole, onHoleChange, onUpdateScore,
     );
 }
 /**
- * 4. LEADERBOARD SCREEN (Premium Dark Mode & Exportable)
+ * 4. LEADERBOARD SCREEN (Premium Dark Mode - Canvas Safe & Bulletproof)
  */
 export function LeaderboardScreen({ state }) {
     if (!state) return null;
@@ -648,16 +658,15 @@ export function LeaderboardScreen({ state }) {
         return isStableford ? statsB.points - statsA.points : statsA.relative - statsB.relative;
     });
 
-    // Helper to get podium colors
     const getPodiumStyle = (index) => {
         if (index === 0) return { bg: 'bg-gradient-to-r from-yellow-300 to-yellow-500', text: 'text-yellow-900', border: 'border-yellow-400', badge: 'bg-yellow-100 text-yellow-800' };
         if (index === 1) return { bg: 'bg-gradient-to-r from-slate-200 to-slate-400', text: 'text-slate-900', border: 'border-slate-300', badge: 'bg-slate-100 text-slate-800' };
         if (index === 2) return { bg: 'bg-gradient-to-r from-amber-600 to-amber-700', text: 'text-amber-50', border: 'border-amber-600', badge: 'bg-amber-900/50 text-amber-200' };
-        return { bg: 'bg-slate-800/50', text: 'text-white', border: 'border-slate-700/50', badge: 'bg-slate-900 text-slate-400' };
+        return { bg: 'bg-slate-800', text: 'text-white', border: 'border-slate-700', badge: 'bg-slate-900 text-slate-400' };
     };
 
     return (
-        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
+        <div className="h-full w-full overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
             
             <div className="flex justify-between items-center mb-6 px-2">
                 <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Leaderboard</h2>
@@ -669,15 +678,13 @@ export function LeaderboardScreen({ state }) {
                 </button>
             </div>
 
-            {/* THE PREMIUM CAPTURE ZONE */}
-            <div id="leaderboard-capture" className="bg-gradient-to-b from-slate-900 to-slate-950 p-4 rounded-[2.5rem] shadow-2xl relative overflow-hidden border border-slate-800">
+            <div id="leaderboard-capture" className="bg-slate-950 p-6 rounded-[2.5rem] shadow-2xl relative border border-slate-800">
                 
-                {/* Subtle background glow effect */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-emerald-500/20 blur-[50px] rounded-full pointer-events-none" />
+                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/40 via-slate-950 to-slate-950 pointer-events-none rounded-[2.5rem]" />
 
-                <div className="text-center mb-8 mt-4 relative z-10">
-                    <p className="text-[10px] font-black uppercase text-emerald-400 tracking-[0.2em]">{state.courseName}</p>
-                    <p className="text-xl font-black text-white uppercase tracking-tighter italic mt-1">{state.mode}</p>
+                <div className="text-center mb-8 relative z-10">
+                    <p className="text-[10px] font-black uppercase text-emerald-400 tracking-widest pt-2">{state.courseName}</p>
+                    <p className="text-xl font-black text-white uppercase mt-1 pb-2">{state.mode}</p>
                 </div>
 
                 <div className="space-y-3 relative z-10">
@@ -687,26 +694,36 @@ export function LeaderboardScreen({ state }) {
                         const isPodium = i < 3;
 
                         return (
-                            <div key={p.id} className={`p-4 rounded-[1.5rem] border flex items-center gap-4 backdrop-blur-sm ${isPodium ? podium.bg : podium.bg} ${podium.border} shadow-lg transition-transform`}>
+                            <div key={p.id} className={`p-4 rounded-[1.5rem] border flex items-center gap-4 ${podium.bg} ${podium.border} shadow-lg`}>
                                 
-                                {/* Position Badge */}
-                                <div className={`w-10 h-10 rounded-[1rem] flex items-center justify-center font-black text-lg shadow-inner ${podium.badge}`}>
-                                    {i + 1}
+                               {/* THE ABSOLUTE OVERLAY FIX */}
+                               <div 
+                                    className={`shrink-0 rounded-2xl relative overflow-hidden ${podium.badge}`}
+                                    style={{ 
+                                        width: '44px', 
+                                        height: '44px', 
+                                        minWidth: '44px' 
+                                    }}
+                                >
+                                    {/* The text sits in an absolute layer floating perfectly over the box */}
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="font-black text-lg" style={{ transform: 'translateY(1px)' }}>
+                                            {i + 1}
+                                        </span>
+                                    </div>
                                 </div>
                                 
-                                {/* Player Info */}
                                 <div className="flex-1 min-w-0">
-                                    <h3 className={`font-black uppercase truncate tracking-tight text-lg leading-none ${podium.text}`}>{p.name}</h3>
+                                    <h3 className={`font-black uppercase text-lg leading-normal pt-1 ${podium.text}`}>{p.name}</h3>
                                     {p.members && p.members.length > 0 && (
-                                        <p className={`text-[9px] font-bold uppercase tracking-widest truncate mt-1 opacity-80 ${podium.text}`}>
+                                        <p className={`text-[9px] font-bold uppercase tracking-wide mt-1 opacity-80 ${podium.text}`}>
                                             {p.members.join(' • ')}
                                         </p>
                                     )}
                                 </div>
                                 
-                                {/* Score Display */}
-                                <div className="text-right">
-                                    <div className={`text-2xl font-black tabular-nums tracking-tighter drop-shadow-sm ${
+                                <div className="text-right shrink-0">
+                                    <div className={`text-2xl font-black tabular-nums leading-normal pt-1 ${
                                         isStableford ? podium.text : 
                                         (stats.relative < 0 && !isPodium) ? 'text-red-400' : 
                                         (stats.relative === 0 && !isPodium) ? 'text-emerald-400' : podium.text
@@ -722,9 +739,8 @@ export function LeaderboardScreen({ state }) {
                     })}
                 </div>
                 
-                {/* Branding footer inside the image */}
-                <div className="text-center mt-8 mb-2 relative z-10 opacity-50">
-                    <p className="text-[8px] font-black uppercase text-white tracking-[0.3em]">⛳️ YKTS Live Scoring</p>
+                <div className="text-center mt-8 relative z-10 opacity-50">
+                    <p className="text-[8px] font-black uppercase text-white tracking-widest pb-2">⛳️ YKTS Live Scoring</p>
                 </div>
             </div>
 
@@ -741,57 +757,100 @@ const StatCircle = ({ label, value, color }) => (
     </div>
 );
 // NEW HELPER: Sleek SVG Line Graph for cumulative performance
-const PerformanceGraph = ({ player, pars }) => {
-    // 1. Calculate cumulative relative score (+/- par) over the round
-    let currentRel = 0;
-    const dataPoints = player.scores.map((score, i) => {
-        if (!score || score === 0) return null; // Skip unplayed holes
-        currentRel += (score - pars[i]);
-        return currentRel;
-    }).filter(val => val !== null);
+// NEW HELPER: Combined SVG Line Graph comparing all players
+// NEW HELPER: Combined SVG Line Graph comparing all players
+const CombinedPerformanceGraph = ({ players, pars }) => {
+    // 1. Set up a vibrant color palette for up to 6 players
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899'];
 
-    if (dataPoints.length < 2) return <div className="text-center text-[10px] font-black uppercase tracking-widest text-slate-300 mt-4">Play more holes to see graph</div>;
+    // 2. Calculate the data points for every single player
+    const playerLines = players.map((player, pIdx) => {
+        let currentRel = 0;
+        const dataPoints = player.scores.map((score, i) => {
+            if (!score || score === 0) return null; // Skip unplayed holes
+            currentRel += (score - pars[i]);
+            return currentRel;
+        }).filter(val => val !== null);
+        
+        return { 
+            id: player.id, 
+            name: player.name, 
+            points: dataPoints, 
+            color: colors[pIdx % colors.length] 
+        };
+    });
 
-    // 2. Setup the SVG canvas math
+    // 3. Find the player who has played the most holes to stretch the X-Axis properly
+    const maxHolesPlayed = Math.max(...playerLines.map(p => p.points.length), 0);
+
+    // If nobody has played at least 2 holes, hide the graph
+    if (maxHolesPlayed < 2) {
+        return (
+            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm mb-4 text-center">
+                <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg mb-2">Field Comparison</h3>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4 mb-4">Play more holes to see graph</p>
+            </div>
+        );
+    }
+
+    // 4. Setup the SVG canvas math based on ALL data points so the Y-Axis scales perfectly
+    const allValues = playerLines.flatMap(p => p.points);
+    const max = Math.max(...allValues, 2); 
+    const min = Math.min(...allValues, -2);
+    const range = max - min || 1; // Fallback to 1 to prevent divide-by-zero
+    
     const width = 300;
-    const height = 80;
-    const max = Math.max(...dataPoints, 2); // Set a minimum ceiling
-    const min = Math.min(...dataPoints, -2); // Set a minimum floor
-    const range = max - min;
+    const height = 120; // Made it slightly taller for the combined view
     const zeroY = height - ((0 - min) / range) * height;
 
-    // 3. Map the data points to X/Y coordinates on the canvas
-    const points = dataPoints.map((val, i) => {
-        const x = (i / (dataPoints.length - 1)) * width;
-        const y = height - ((val - min) / range) * height;
-        return `${x},${y}`;
-    }).join(' ');
-
     return (
-        <div className="mt-6 pt-4 border-t border-slate-100">
-            <div className="flex justify-between items-center mb-2 px-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Trend</span>
-                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase tracking-widest">{currentRel > 0 ? `+${currentRel}` : currentRel === 0 ? 'E' : currentRel}</span>
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm mb-4">
+            <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg mb-4 text-center">Field Comparison</h3>
+            
+            {/* THE LEGEND */}
+            <div className="flex flex-wrap justify-center gap-3 mb-8">
+                {playerLines.map(p => (
+                    <div key={p.id} className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: p.color }} />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">{p.name}</span>
+                    </div>
+                ))}
             </div>
-            <div className="relative w-full overflow-visible">
-                <svg viewBox={`0 -10 ${width} ${height + 20}`} className="w-full h-20 overflow-visible drop-shadow-sm">
+
+            {/* THE COMBINED GRAPH */}
+            <div className="relative w-full overflow-visible px-2">
+                <svg viewBox={`0 -10 ${width} ${height + 20}`} className="w-full h-32 overflow-visible drop-shadow-sm">
                     {/* The Par "Zero" Line */}
-                    <line x1="0" y1={zeroY} x2={width} y2={zeroY} stroke="#e2e8f0" strokeWidth="2" strokeDasharray="4 4" />
+                    <line x1="0" y1={zeroY} x2={width} y2={zeroY} stroke="#cbd5e1" strokeWidth="2" strokeDasharray="4 4" />
                     
-                    {/* The Data Line */}
-                    <polyline points={points} fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-                    
-                    {/* The Data Dots */}
-                    {dataPoints.map((val, i) => {
-                        const x = (i / (dataPoints.length - 1)) * width;
-                        const y = height - ((val - min) / range) * height;
-                        const isUnderPar = val < 0;
+                    {/* Loop through each player and draw their specific line */}
+                    {playerLines.map(p => {
+                        if (p.points.length < 2) return null;
+                        
+                        const pointsStr = p.points.map((val, i) => {
+                            // Scale the X-axis based on the player furthest along
+                            const x = (i / Math.max(maxHolesPlayed - 1, 1)) * width;
+                            const y = height - ((val - min) / range) * height;
+                            return `${x},${y}`;
+                        }).join(' ');
+
                         return (
-                            <circle 
-                                key={i} cx={x} cy={y} r="4" 
-                                fill={isUnderPar ? "#ef4444" : "#10b981"} // Red for under par (good in golf!), Green for over
-                                stroke="#ffffff" strokeWidth="2" 
-                            />
+                            <g key={p.id}>
+                                {/* The Line */}
+                                <polyline points={pointsStr} fill="none" stroke={p.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+                                {/* The Dots */}
+                                {p.points.map((val, i) => {
+                                    const x = (i / Math.max(maxHolesPlayed - 1, 1)) * width;
+                                    const y = height - ((val - min) / range) * height;
+                                    return (
+                                        <circle 
+                                            key={i} cx={x} cy={y} r="3" 
+                                            fill={p.color} 
+                                            stroke="#ffffff" strokeWidth="1.5" 
+                                        />
+                                    );
+                                })}
+                            </g>
                         );
                     })}
                 </svg>
@@ -800,13 +859,13 @@ const PerformanceGraph = ({ player, pars }) => {
     );
 };
 /**
- * 5. STATS SCREEN (With Performance Line Graph)
+ * 5. STATS SCREEN (With Combined Performance Graph)
  */
 export function StatsScreen({ state }) {
     if (!state) return null;
 
     return (
-        <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
+        <div className="h-full w-full overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar">
             
             <div className="flex justify-between items-center mb-6 px-2">
                 <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Performance</h2>
@@ -825,6 +884,10 @@ export function StatsScreen({ state }) {
                     <p className="text-sm font-black text-emerald-700 uppercase tracking-tight">Round Analytics</p>
                 </div>
 
+                {/* NEW: Place the Combined Graph at the very top of the analytics! */}
+                <CombinedPerformanceGraph players={state.players} pars={state.pars} />
+
+                {/* Loop through the players for their specific Stat Circles */}
                 {state.players.map(p => {
                     const stats = getPlayerStats(p, state.pars, state.mode);
                     return (
@@ -837,10 +900,6 @@ export function StatsScreen({ state }) {
                                 <StatCircle label="Pars" value={stats.parsCount} color="bg-emerald-100 text-emerald-600" />
                                 <StatCircle label="Bogeys+" value={stats.bogeys} color="bg-slate-100 text-slate-600" />
                             </div>
-
-                            {/* NEW: The SVG Line Graph! */}
-                            <PerformanceGraph player={p} pars={state.pars} />
-
                         </div>
                     );
                 })}
@@ -849,32 +908,26 @@ export function StatsScreen({ state }) {
     );
 }
 /**
- * 6. UPDATED SCORECARD SCREEN
- * Now displays Team Rosters (members) under Team Names.
+ * 6. UPDATED SCORECARD SCREEN (With Horizontal Scroll & Sticky Columns)
  */
 export function ScorecardScreen({ state, currentHole, onHoleSelect }) {
     if (!state) return null;
     const isStableford = state.mode === 'Stableford';
 
-    // Helper to style Birdies (Circles) and Bogeys (Squares)
     const getScoreStyle = (score, par) => {
         if (!score || score === 0) return "text-slate-300";
         const diff = score - par;
-        // Birdie or better (Circle)
         if (diff === -1) return "border-2 border-emerald-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto text-emerald-600 font-bold";
         if (diff <= -2) return "border-4 border-emerald-500 rounded-full w-9 h-9 flex items-center justify-center mx-auto text-emerald-600 font-black";
-        // Bogey (Square)
         if (diff === 1) return "border-2 border-slate-900 w-7 h-7 flex items-center justify-center mx-auto text-slate-900 font-bold";
-        // Double Bogey+ (Thick Square)
         if (diff >= 2) return "border-4 border-slate-900 w-8 h-8 flex items-center justify-center mx-auto text-slate-900 font-black";
-        
         return "text-slate-900 font-medium";
     };
 
     return (
         <div className="p-4 h-full animate-in fade-in duration-500 flex flex-col overflow-hidden">
             {/* CARD HEADER */}
-            <div className="mb-4 px-2 flex justify-between items-end">
+            <div className="mb-4 px-2 flex justify-between items-end shrink-0">
                 <div>
                     <h2 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none">Scorecard</h2>
                     <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">
@@ -887,20 +940,20 @@ export function ScorecardScreen({ state, currentHole, onHoleSelect }) {
                 </div>
             </div>
 
-            {/* THE TABLE */}
-            <div className="flex-1 overflow-auto border border-slate-200 rounded-[2rem] bg-white shadow-xl no-scrollbar">
-                <table className="w-full text-center border-collapse">
+            {/* THE TABLE WRAPPER - Ensure horizontal scroll is enabled */}
+            <div className="flex-1 overflow-x-auto overflow-y-auto border border-slate-200 rounded-[2rem] bg-white shadow-xl no-scrollbar">
+                {/* min-w-max ensures the table expands to fit its content width */}
+                <table className="w-full min-w-max text-center border-collapse">
                     <thead className="sticky top-0 z-20 bg-slate-100 shadow-sm">
                         <tr className="border-b border-slate-200">
+                            {/* Hole column: Sticky Left */}
                             <th className="p-4 w-14 sticky left-0 bg-slate-100 z-30 border-r border-slate-200 text-[10px] font-black uppercase text-slate-400">Hole</th>
                             <th className="p-4 w-12 border-r border-slate-200 text-[10px] font-black uppercase text-slate-400">Par</th>
                             {state.players.map(player => (
-                                <th key={player.id} className="p-4 min-w-[110px] border-r border-slate-200 last:border-r-0">
+                                <th key={player.id} className="p-4 min-w-[120px] border-r border-slate-200 last:border-r-0">
                                     <div className="text-slate-900 font-black truncate uppercase text-[11px] leading-tight">
                                         {player.name}
                                     </div>
-                                    
-                                    {/* ROSTER DISPLAY: Shows members if they exist (Scramble/Alternate) */}
                                     {player.members && player.members.length > 0 && (
                                         <div className="text-[7px] text-slate-400 font-bold leading-none mt-1 uppercase tracking-tighter italic">
                                             {player.members.join(', ')}
@@ -917,6 +970,7 @@ export function ScorecardScreen({ state, currentHole, onHoleSelect }) {
                                 onClick={() => onHoleSelect(hIdx)} 
                                 className={`group active:bg-emerald-100 transition-colors ${hIdx === currentHole ? 'bg-emerald-50/50' : ''}`}
                             >
+                                {/* Hole Cell: Sticky Left */}
                                 <td className="p-4 sticky left-0 bg-white group-active:bg-emerald-100 z-10 border-r border-slate-200 font-black text-slate-400 text-xs">
                                     {hIdx + 1}
                                 </td>
@@ -937,15 +991,17 @@ export function ScorecardScreen({ state, currentHole, onHoleSelect }) {
                         
                         {/* TOTALS FOOTER */}
                         <tr className="bg-slate-900 text-white font-black uppercase text-[10px] sticky bottom-0 z-20">
+                            {/* TOT Cell: Sticky Left */}
                             <td className="p-4 sticky left-0 bg-slate-900 z-10 border-r border-slate-800">TOT</td>
                             <td className="p-4 border-r border-slate-800">
                                 {state.pars.reduce((a, b) => a + b, 0)}
                             </td>
                             {state.players.map(player => {
                                 const stats = getPlayerStats(player, state.pars, state.mode);
+                                const totalStrokes = player.scores.reduce((sum, s) => sum + (s || 0), 0);
                                 return (
                                     <td key={player.id} className="p-4 text-emerald-400 text-sm border-r border-slate-800 last:border-r-0">
-                                        {isStableford ? `${stats.points} PTS` : stats.strokes}
+                                        {isStableford ? `${stats.points} PTS` : (totalStrokes > 0 ? totalStrokes : '-')}
                                     </td>
                                 );
                             })}
@@ -954,14 +1010,12 @@ export function ScorecardScreen({ state, currentHole, onHoleSelect }) {
                 </table>
             </div>
 
-            {/* TIP FOOTER */}
-            <p className="text-center text-[8px] font-black text-slate-300 uppercase tracking-widest mt-4">
+            <p className="text-center text-[8px] font-black text-slate-300 uppercase tracking-widest mt-4 shrink-0">
                 Tap any row to jump to that hole and edit the score
             </p>
         </div>
     );
 }
-
 /**
  * 7. SUMMARY SCREEN (With Full Scorecard)
  * Includes the Champion Card AND the full hole-by-hole receipt.
@@ -1109,19 +1163,24 @@ export function SummaryScreen({ state, onLeave, showToast }) {
                                     ))}
                                 </tr>
                             ))}
-                            {/* TOTALS ROW */}
-                            <tr className="bg-slate-900 text-white font-black uppercase text-[10px]">
-                                <td className="p-4 border-r border-slate-800">TOT</td>
-                                <td className="p-4 border-r border-slate-800">{state.pars.reduce((a, b) => a + b, 0)}</td>
-                                {state.players.map(player => {
-                                    const stats = getPlayerStats(player, state.pars, state.mode);
-                                    return (
-                                        <td key={player.id} className="p-4 text-emerald-400 text-xs border-r border-slate-800 last:border-r-0">
-                                            {isStableford ? `${stats.points}` : stats.strokes}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
+                            {/* TOTALS FOOTER */}
+                       <tr className="bg-slate-900 text-white font-black uppercase text-[10px] sticky bottom-0 z-20">
+                            <td className="p-4 sticky left-0 bg-slate-900 z-10 border-r border-slate-800">TOT</td>
+                            <td className="p-4 border-r border-slate-800">
+                                {state.pars.reduce((a, b) => a + b, 0)}
+                            </td>
+                            {state.players.map(player => {
+                                const stats = getPlayerStats(player, state.pars, state.mode);
+                                // NEW: Calculate the total strokes right here!
+                                const totalStrokes = player.scores.reduce((sum, s) => sum + (s || 0), 0);
+                                
+                                return (
+                                    <td key={player.id} className="p-4 text-emerald-400 text-sm border-r border-slate-800 last:border-r-0">
+                                        {isStableford ? `${stats.points} PTS` : (totalStrokes > 0 ? totalStrokes : '-')}
+                                    </td>
+                                );
+                            })}
+                        </tr>
                         </tbody>
                     </table>
                 </div>
@@ -1147,53 +1206,105 @@ export function SummaryScreen({ state, onLeave, showToast }) {
     );
 }
 /**
- * 8. LIVE FEED SCREEN
+ * 7. FEED / CHAT SCREEN
+ * Live trash talk and system updates.
  */
-export function FeedScreen({ state }) {
+export function FeedScreen({ state, onSendMessage }) {
+    const [message, setMessage] = useState('');
+    const [author, setAuthor] = useState(''); 
+    const feedEndRef = useRef(null);
+
+    useEffect(() => {
+        feedEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [state?.feed]);
+
     if (!state) return null;
-    const totalStats = state.players.reduce((acc, p) => {
-        p.scores.forEach((s, i) => {
-            if (s > 0) {
-                const diff = s - state.pars[i];
-                if (s === 1) acc.hio++;
-                else if (diff <= -2) acc.eagles++;
-                else if (diff === -1) acc.birdies++;
-                else if (diff === 0) acc.pars++;
-            }
-        });
-        return acc;
-    }, { hio: 0, eagles: 0, birdies: 0, pars: 0 });
-    const sortedFeed = [...(state.feed || [])].reverse().slice(0, 20);
+
+    const handleSend = (e) => {
+        e.preventDefault(); 
+        if (!message.trim()) return;
+        
+        onSendMessage(message, author || 'Anonymous');
+        setMessage(''); 
+    };
+
     return (
-        <div className="p-6 h-full animate-in slide-in-from-right duration-300 overflow-y-auto no-scrollbar pb-32">
-            <h2 className="text-3xl font-black text-slate-900 mb-6 tracking-tighter uppercase">Clubhouse</h2>
-            <div className="bg-slate-900 rounded-[2rem] p-6 mb-8 text-white shadow-xl">
-                <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-white/10 p-3 rounded-2xl">
-                        <p className="text-xl font-black text-emerald-400">{totalStats.birdies + totalStats.eagles + totalStats.hio}</p>
-                        <p className="text-[8px] font-black uppercase text-slate-400 leading-none mt-1">Unders</p>
-                    </div>
-                    <div className="bg-white/10 p-3 rounded-2xl">
-                        <p className="text-xl font-black">{totalStats.pars}</p>
-                        <p className="text-[8px] font-black uppercase text-slate-400 leading-none mt-1">Pars</p>
-                    </div>
-                    <div className="bg-white/10 p-3 rounded-2xl border border-emerald-500/30">
-                        <p className="text-xl font-black text-emerald-400">{totalStats.hio}</p>
-                        <p className="text-[8px] font-black uppercase text-slate-400 leading-none mt-1">HIO</p>
-                    </div>
-                </div>
+        <div className="h-full w-full flex flex-col bg-slate-50 relative">
+            
+            {/* HEADER */}
+            <div className="px-6 pt-6 pb-2 shrink-0">
+                <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Gallery</h2>
             </div>
-            <div className="space-y-4">
-                {sortedFeed.map((msg) => (
-                    <div key={msg.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex gap-4 items-start">
-                        <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 shrink-0"><Flag size={18} /></div>
-                        <div>
-                            <p className="text-sm font-bold text-slate-800 leading-tight mb-1">{msg.text}</p>
-                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{msg.time}</span>
+
+            {/* MESSAGE TIMELINE */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5 no-scrollbar">
+                {(!state.feed || state.feed.length === 0) ? (
+                    <div className="text-center mt-20 opacity-50">
+                        <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Send size={24} className="text-slate-400 ml-1" />
                         </div>
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No messages yet</p>
+                        <p className="text-[10px] font-bold text-slate-400 mt-1">Be the first to talk trash!</p>
                     </div>
-                ))}
+                ) : (
+                    state.feed.map((msg, i) => {
+                        // Check if it's a system message
+                        const isSystem = msg.type === 'system';
+
+                        return (
+                            // Use w-full and justify to strictly align left or center
+                            <div key={msg.id || i} className={`flex w-full animate-in slide-in-from-bottom-2 ${isSystem ? 'justify-center' : 'justify-start'}`}>
+                                
+                                {isSystem ? (
+                                    // System Messages (Centered Pill)
+                                    <div className="bg-slate-200/60 text-slate-500 text-[10px] font-black px-5 py-2 rounded-full uppercase tracking-widest text-center max-w-[85%] my-1 shadow-sm">
+                                        {msg.text}
+                                    </div>
+                                ) : (
+                                    // Chat Bubbles (Left Aligned, Shrink-wrapped)
+                                    <div className="bg-white px-5 py-3.5 rounded-[1.5rem] rounded-tl-sm shadow-sm border border-slate-100 max-w-[85%] w-fit">
+                                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">
+                                            {msg.author}
+                                        </p>
+                                        <p className="text-sm font-bold text-slate-700 leading-snug break-words">
+                                            {msg.text}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
+                )}
+                {/* Invisible anchor to force the auto-scroll to the bottom */}
+                <div ref={feedEndRef} className="h-4" />
             </div>
+
+            {/* CHAT INPUT FORM */}
+            <div className="shrink-0 p-4 bg-white border-t border-slate-100">
+                <form onSubmit={handleSend} className="flex gap-2">
+                    <input 
+                        value={author}
+                        onChange={(e) => setAuthor(e.target.value)}
+                        placeholder="Your Name" 
+                        maxLength={12}
+                        className="w-24 bg-slate-50 px-3 py-3 rounded-2xl text-[10px] font-black uppercase tracking-wide outline-none border border-slate-200 focus:border-emerald-500 transition-colors placeholder:text-slate-400"
+                    />
+                    <input 
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        placeholder="Talk trash..." 
+                        className="flex-1 bg-slate-50 px-4 py-3 rounded-2xl text-sm font-bold outline-none border border-slate-200 focus:border-emerald-500 transition-colors placeholder:text-slate-400"
+                    />
+                    <button 
+                        type="submit"
+                        disabled={!message.trim()}
+                        className="bg-emerald-600 text-white w-12 flex items-center justify-center rounded-2xl active:scale-90 transition-all disabled:opacity-50 disabled:active:scale-100 shadow-sm"
+                    >
+                        <Send size={18} className="ml-0.5" />
+                    </button>
+                </form>
+            </div>
+            
         </div>
     );
 }
