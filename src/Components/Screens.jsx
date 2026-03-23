@@ -178,7 +178,7 @@ export function LobbyScreen({ onNavigate, onJoinSuccess, showToast }) {
             <div className="mb-12 flex flex-col items-center animate-in zoom-in duration-700">
                 <div className="w-28 h-30 flex items-center justify-center overflow-hidden">
                     <img 
-                        src="/logo.png" 
+                        src="/logotest.png" 
                         alt="YKTS Logo" 
                         className="w-full h-full object-contain" 
                     />
