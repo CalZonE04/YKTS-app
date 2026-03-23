@@ -166,7 +166,7 @@ function CourseInput({ value, onChange }) {
 }
 
 /**
- * 1. LOBBY SCREEN (Cleaned up, Feed moved to SpectateScreen)
+ * 1. LOBBY SCREEN (Logo Replaced Trophy)
  */
 export function LobbyScreen({ onNavigate, onJoinSuccess, showToast }) {
     const inputRef = useRef(null);
@@ -174,18 +174,23 @@ export function LobbyScreen({ onNavigate, onJoinSuccess, showToast }) {
     return (
         <div className="flex-1 overflow-y-auto overscroll-contain pb-32 p-4 no-scrollbar flex flex-col justify-center">
             
-            {/* HERO SECTION */}
-            <div className="bg-emerald-600 p-8 rounded-[2.5rem] shadow-2xl text-white mb-8 rotate-3 flex items-center justify-center w-24 mx-auto mt-4">
-                <Trophy size={48} />
-            </div>
-            <div className="text-center mb-10">
-                <h1 className="text-5xl font-black text-slate-900 leading-none tracking-tighter italic">YKTS</h1>
-                <h2 className="text-lg font-black text-emerald-600 tracking-[0.2em] uppercase mt-2">You Know The Score</h2>
+            {/* HERO SECTION - REPLACED TROPHY WITH LOGO.PNG */}
+            <div className="mb-12 flex flex-col items-center animate-in zoom-in duration-700">
+                <div className="w-28 h-30 flex items-center justify-center overflow-hidden">
+                    <img 
+                        src="/logo.png" 
+                        alt="YKTS Logo" 
+                        className="w-full h-full object-contain" 
+                    />
+                </div>
+                {/* Optional: You can remove these text lines if they are already in your logo.png */}
+                <h1 className="text-6xl font-black text-slate-900 leading-none tracking-tighter italic mt-4">YKTS</h1>
+                <p className="text-[12px] font-black text-emerald-600 uppercase tracking-[0.4em] mt-2">You Know The Score</p>
             </div>
 
-            {/* ACTION BUTTONS */}
+            
+
             <div className="space-y-4 max-w-sm mx-auto w-full">
-                
                 <button 
                     onClick={() => onNavigate('setup')} 
                     className="w-full bg-emerald-600 text-white p-6 rounded-[2rem] font-black text-xl shadow-lg active:scale-95 transition flex justify-center items-center gap-3"
@@ -193,7 +198,6 @@ export function LobbyScreen({ onNavigate, onJoinSuccess, showToast }) {
                     <Flag size={24} fill="currentColor" /> Start a Round
                 </button>
 
-                {/* NEW: SPECTATE BUTTON */}
                 <button 
                     onClick={() => onNavigate('spectate')} 
                     className="w-full bg-blue-50 text-blue-600 p-6 rounded-[2rem] font-black text-xl border border-blue-100 shadow-sm active:scale-95 transition flex justify-center items-center gap-3"
@@ -217,11 +221,9 @@ export function LobbyScreen({ onNavigate, onJoinSuccess, showToast }) {
                     </button>
                 </div>
             </div>
-
         </div>
     );
 }
-
 /**
  * 2. THE UPDATED SETUP SCREEN (With GPS Auto-Locate)
  */
